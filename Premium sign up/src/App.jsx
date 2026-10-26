@@ -1,8 +1,7 @@
-import React from "react";
-import OrgCalendar from "./OrgCalendar";
+import SignupForm from "./SignupForm";
 
 export default function App() {
-  return <OrgCalendar canBookPremiumRoom={true} />;
+  return <SignupForm />;
 }
 
 
