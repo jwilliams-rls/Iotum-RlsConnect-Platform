@@ -56,7 +56,7 @@ export default function SignupForm({ onSignupSuccess }) {
         Create Organization Account
       </Typography>
       {error && <Alert severity="error">{error}</Alert>}
-      {success && <Alert severity="success">Test signup received. No payment was collected and no Iotum account was activated.</Alert>}
+      {success && <Alert severity="success">Test signup saved. No payment was collected and no Iotum account was activated.</Alert>}
       <Box component="form" onSubmit={handleSubmit} mt={2}>
         <TextField
           label="Organization Name"
@@ -94,6 +94,8 @@ export default function SignupForm({ onSignupSuccess }) {
           fullWidth
           margin="normal"
           type="password"
+          helperText="Use 12–256 characters. Use fictional details for this development test."
+          slotProps={{ htmlInput: { minLength: 12, maxLength: 256 } }}
           required
         />
         <Button
