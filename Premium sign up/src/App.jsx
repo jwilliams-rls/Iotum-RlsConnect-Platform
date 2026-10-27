@@ -34,8 +34,7 @@ export default function App() {
   return <div className="rlc-page">
     <header className="rlc-header">
       <a href="#top" className="rlc-brand" onClick={() => setScreen("pricing")}>
-        <span className="rlc-brand-mark" aria-hidden="true">rl</span>
-        <span>Real Life <strong>Connect</strong></span>
+        <img className="rlc-logo" src={`${import.meta.env.BASE_URL}real-life-connect-logo.png`} alt="Real Life Connect" width="2048" height="1026" />
       </a>
       <span className="rlc-header-note">Meet. Collaborate. Stay connected.</span>
     </header>
@@ -109,6 +108,6 @@ export default function App() {
         <SignupForm />
       </section>}
     </main>
-    <footer className="rlc-footer">Real Life Connect · Real Life Systems, LLC</footer>
+    <footer className="rlc-footer"><img className="rlc-footer-logo" src={`${import.meta.env.BASE_URL}real-life-connect-logo.png`} alt="Real Life Connect" width="2048" height="1026" loading="lazy" /><span>Real Life Systems, LLC</span></footer>
   </div>;
 }
