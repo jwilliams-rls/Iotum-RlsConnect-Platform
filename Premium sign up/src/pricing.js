@@ -1,5 +1,5 @@
 export const plans = [
-  { id: "basic", name: "Basic", price: 5.99, participants: 25, code: "reallife_basic" },
+  { id: "basic", name: "Basic", price: 7.99, participants: 25, code: "reallife_basic" },
   { id: "plus", name: "Plus", price: 16.99, participants: 100, code: "reallife_plus" },
   { id: "pro", name: "Pro", price: 24.99, participants: 250, code: "reallife_pro" },
 ];
@@ -49,3 +49,13 @@ export function monthlyCents(users, plusRooms, proRooms) {
 export const money = cents => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD"
 }).format(cents / 100);
+
+export const organizationUserCents = 599;
+export const usersPerSharedRoom = 10;
+export function isOrganizationPackageValid(users, plusRooms, proRooms) {
+  const values = [users, plusRooms, proRooms];
+  if (!values.every(v => v !== "" && Number.isInteger(Number(v)))) return false;
+  const [u, plus, pro] = values.map(Number);
+  return u >= 1 && u <= 1000 && plus >= 0 && pro >= 0 && plus <= 100 && pro <= 100
+    && plus + pro >= 1 && u <= usersPerSharedRoom * (plus + pro);
+}
