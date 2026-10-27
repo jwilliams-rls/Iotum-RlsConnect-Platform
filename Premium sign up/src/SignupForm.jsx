@@ -56,7 +56,7 @@ export default function SignupForm({ onSignupSuccess }) {
         Create Organization Account
       </Typography>
       {error && <Alert severity="error">{error}</Alert>}
-      {success && <Alert severity="success">Signup successful!</Alert>}
+      {success && <Alert severity="success">Test signup received. No payment was collected and no Iotum account was activated.</Alert>}
       <Box component="form" onSubmit={handleSubmit} mt={2}>
         <TextField
           label="Organization Name"
@@ -103,7 +103,7 @@ export default function SignupForm({ onSignupSuccess }) {
           fullWidth
           sx={{ mt: 2 }}
         >
-          Create Account
+          Submit Test Signup
         </Button>
       </Box>
     </Paper>
