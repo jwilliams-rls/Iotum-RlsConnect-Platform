@@ -30,3 +30,15 @@ test("reseller table preserves all rows and explicit unknown Basic cells", () =>
   assert.equal(features.find(row => row[0] === "Share second camera")[1], null);
   assert.equal(features.find(row => row[0] === "Unique participant codes")[1], null);
 });
+
+
+test("database catalog changes drive prices, feature rows and room validation", async () => {
+  const pricing = await import('../src/pricing.js');
+  const original = { currency: 'USD', plans: pricing.plans, features: pricing.features, organizationUserCents: pricing.organizationUserCents, usersPerSharedRoom: pricing.usersPerSharedRoom };
+  try {
+    pricing.applyCatalog({ ...original, plans: original.plans.map(p => ({ ...p, price: p.id === 'pro' ? 29.99 : p.price })), organizationUserCents: 699, usersPerSharedRoom: 5, features: [['Meeting participants', 25, 100, 250]] });
+    assert.equal(pricing.monthlyCents(5, 0, 1), 6494);
+    assert.equal(pricing.isOrganizationPackageValid(6, 0, 1), false);
+    assert.equal(pricing.features.length, 1);
+  } finally { pricing.applyCatalog(original); }
+});

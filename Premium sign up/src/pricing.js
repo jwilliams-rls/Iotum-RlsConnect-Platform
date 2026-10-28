@@ -1,4 +1,4 @@
-export const plans = [
+export let plans = [
   { id: "basic", name: "Basic", price: 7.99, participants: 25, code: "reallife_basic" },
   { id: "plus", name: "Plus", price: 16.99, participants: 100, code: "reallife_plus" },
   { id: "pro", name: "Pro", price: 24.99, participants: 250, code: "reallife_pro" },
@@ -6,7 +6,7 @@ export const plans = [
 
 // Source: the reseller feature table supplied on October 27, 2026.
 // null means the supplied cell was blank; do not advertise it as included.
-export const features = [
+export let features = [
   ["Meeting participants", 25, 100, 250],
   ["Virtual backgrounds", true, true, true],
   ["Screen sharing", true, true, true],
@@ -44,18 +44,28 @@ export const features = [
   ["Cue meeting transcription & AI insights", false, false, true],
 ];
 export function monthlyCents(users, plusRooms, proRooms) {
-  return users * 599 + plusRooms * 1699 + proRooms * 2499;
+  return users * organizationUserCents + plusRooms * Math.round(plans[1].price * 100) + proRooms * Math.round(plans[2].price * 100);
 }
 export const money = cents => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD"
 }).format(cents / 100);
 
-export const organizationUserCents = 599;
-export const usersPerSharedRoom = 10;
+export let organizationUserCents = 599;
+export let usersPerSharedRoom = 10;
 export function isOrganizationPackageValid(users, plusRooms, proRooms) {
   const values = [users, plusRooms, proRooms];
   if (!values.every(v => v !== "" && Number.isInteger(Number(v)))) return false;
   const [u, plus, pro] = values.map(Number);
   return u >= 1 && u <= 1000 && plus >= 0 && pro >= 0 && plus <= 100 && pro <= 100
     && plus + pro >= 1 && u <= usersPerSharedRoom * (plus + pro);
+}
+
+
+// Load once before rendering. Refresh the page after a local catalog update.
+export function applyCatalog(catalog) {
+  if (catalog.currency !== "USD" || !Array.isArray(catalog.plans) || catalog.plans.length !== 3 || !Array.isArray(catalog.features)) throw new Error("Invalid pricing response");
+  plans = catalog.plans;
+  features = catalog.features;
+  organizationUserCents = catalog.organizationUserCents;
+  usersPerSharedRoom = catalog.usersPerSharedRoom;
 }

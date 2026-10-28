@@ -8,6 +8,10 @@ function createApp(store) {
   app.use(express.json({ limit: "16kb" }));
   // The Vite proxy serves browser API requests from the same origin.
   // No public user-list or database-download endpoint is exposed.
+  app.get("/api/catalog", (req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.json(require("./catalog").publicCatalog(store.db));
+  });
   let hashing = 0;
   app.post("/api/signup", async (req, res) => {
     const body = req.body;
@@ -64,3 +68,4 @@ if (require.main === module) {
   process.once("SIGTERM", shutdown);
 }
 module.exports = { createApp };
+
