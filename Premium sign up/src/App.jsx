@@ -16,7 +16,7 @@ function Link({ page, children, className = "rlc-button" }) {
 function FeatureValue({ value }) {
   if (value === true) return <span className="rlc-included">Included</span>;
   if (value === false) return <span className="rlc-excluded">Not included</span>;
-  return value === null ? "To be confirmed" : value;
+  return value === null ? <span aria-label="Not listed">—</span> : value;
 }
 function Quantity({ label, value, onChange, min = 0, max = 100 }) {
   return <label className="rlc-quantity"><span>{label}</span><input type="number" min={min} max={max} step="1" value={value} onChange={e => onChange(e.target.value)} required /></label>;
@@ -31,9 +31,7 @@ function Comparison() {
       <tbody>{features.map(([name, ...values]) => <tr key={name}><th scope="row">{name}</th>{values.map((v, i) => <td key={i}><FeatureValue value={v} /></td>)}</tr>)}</tbody>
     </table></div>
     <aside className="rlc-notes">
-      <p>Telephone-network audio conferencing requires a separate voice plan or usage charges. SMS invitations and reminders carry additional charges. Call-out charges must be confirmed before use.</p>
-      <p>Basic support for a second camera and unique participant codes is awaiting confirmation. “Secure Meetings” is a named feature, not a statement that Basic lacks security protections.</p>
-      <p>YouTube streaming and Pro “Live streaming” are listed separately by the provider; the distinction is being confirmed.</p>
+      <p>Telephone-network audio conferencing requires a separate voice plan or usage charges. SMS invitations and reminders carry additional charges.</p>
     </aside>
   </section>;
 }
