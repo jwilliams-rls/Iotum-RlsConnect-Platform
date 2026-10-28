@@ -69,3 +69,5 @@ Refresh the website to see meeting price and feature edits. No server restart is
 `GET /api/catalog` returns only public meeting prices and features. Wholesale costs, usage costs, supplier notes and unfinished webinar packages are excluded. The website loads this catalog before rendering and shows an unavailable message if the backend cannot be reached, rather than displaying old hardcoded prices. Existing subscriptions/orders are not repriced: subscription billing is not connected yet.
 
 Schema version 3 corrects the original unspecified Basic second-camera value to not included. Existing pricing edits are preserved, and the earlier catalog revision is retained. Explicit operator changes to that feature are not overwritten. Restart the backend after pulling this update.
+
+Schema version 4 applies the owner clarification: Basic includes Audio recording, but all subsequent feature rows are not included. Migration changes only those Basic cells and preserves Plus/Pro, prices, costs, signups and catalog history.

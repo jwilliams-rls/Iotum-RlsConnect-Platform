@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 3) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 4) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -59,6 +59,23 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
           current.revision + 1, JSON.stringify(catalog), new Date().toISOString());
       }
       db.exec("PRAGMA user_version = 3; COMMIT;");
+    } catch (error) { db.exec("ROLLBACK"); db.close(); throw error; }
+  }
+  if (version < 4) {
+    // Apply the owner's Basic boundary; preserve all other catalog fields.
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = db.prepare("SELECT * FROM catalog_versions ORDER BY revision DESC LIMIT 1").get();
+      const catalog = JSON.parse(current.document);
+      const boundary = catalog.features.findIndex(row => row[0] === "Audio recording");
+      if (boundary < 0) throw new Error("Catalog is missing the Audio recording feature.");
+      let changed = false;
+      for (const row of catalog.features.slice(boundary + 1)) {
+        if (row[1] !== false) { row[1] = false; changed = true; }
+      }
+      if (changed) db.prepare("INSERT INTO catalog_versions VALUES (?, ?, ?)").run(
+        current.revision + 1, JSON.stringify(catalog), new Date().toISOString());
+      db.exec("PRAGMA user_version = 4; COMMIT;");
     } catch (error) { db.exec("ROLLBACK"); db.close(); throw error; }
   }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {

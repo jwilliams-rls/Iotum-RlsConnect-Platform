@@ -40,7 +40,7 @@ test('version-one databases migrate without changing existing users', () => {
   db.close();
   const store = openStore(filename);
   try {
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 3);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 4);
     assert.equal(store.db.prepare('SELECT email FROM users').get().email, 'existing@example.test');
     assert.equal(readCatalog(store.db).revision, 1);
     for (const mutate of [c => c.plans[0].priceCents = -1, c => c.usageRates[0].priceMicroUsd = 0.5, c => c.features[0][1] = 999]) {
@@ -85,5 +85,29 @@ test('version-two camera correction preserves retail edits and catalog history',
     assert.equal(store.db.prepare('SELECT count(*) n FROM catalog_versions').get().n, 3);
     store.close(); store = openStore(filename);
     assert.equal(readCatalog(store.db).revision, 3);
+  } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('version-three migration excludes all Basic features below audio recording', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'rlc-basic-'));
+  const filename = path.join(dir, 'db.sqlite');
+  let store = openStore(filename);
+  try {
+    const envelope = readCatalog(store.db);
+    envelope.catalog.plans[0].priceCents = 999;
+    envelope.catalog.features.find(row => row[0] === 'Unique participant codes')[1] = null;
+    envelope.catalog.features.find(row => row[0] === 'Video recording')[1] = true;
+    const otherColumns = envelope.catalog.features.map(row => row.slice(2));
+    saveCatalog(store.db, envelope);
+    store.db.exec('PRAGMA user_version = 3');
+    store.close(); store = openStore(filename);
+    const corrected = readCatalog(store.db);
+    assert.equal(corrected.catalog.plans[0].priceCents, 999);
+    const features = corrected.catalog.features;
+    const boundary = features.findIndex(row => row[0] === 'Audio recording');
+    assert.equal(features[boundary][1], true);
+    assert.ok(features.slice(boundary + 1).every(row => row[1] === false));
+    assert.deepEqual(features.map(row => row.slice(2)), otherColumns);
+    assert.equal(corrected.revision, 3);
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });

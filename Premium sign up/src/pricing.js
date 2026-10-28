@@ -5,7 +5,7 @@ export let plans = [
 ];
 
 // Source: the reseller feature table supplied on October 27, 2026.
-// null means the supplied cell was blank; do not advertise it as included.
+// Basic excludes every feature below Audio recording, as clarified by the owner.
 export let features = [
   ["Meeting participants", 25, 100, 250],
   ["Virtual backgrounds", true, true, true],
@@ -29,7 +29,7 @@ export let features = [
   ["Company custom branding", false, true, true],
   ["Meeting lock", false, true, true],
   ["Secure Meetings feature", false, true, true],
-  ["Unique participant codes", null, true, true],
+  ["Unique participant codes", false, true, true],
   ["Enhanced caller ID", false, true, true],
   ["Private chat", false, true, true],
   ["Breakout rooms", false, true, true],

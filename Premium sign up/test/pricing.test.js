@@ -23,12 +23,13 @@ test("discounted package requires a user and room, with bounded whole quantities
     assert.equal(isOrganizationPackageValid(...args), false);
   }
 });
-test("reseller table excludes second camera from Basic and preserves unspecified codes", () => {
+test("Basic includes audio recording and excludes every subsequent feature", () => {
   assert.equal(features.length, 35);
   assert.equal(features.find(row => row[0] === "Audio recording")[1], true);
+  assert.ok(features.slice(features.findIndex(row => row[0] === "Audio recording") + 1).every(row => row[1] === false));
   assert.equal(features.find(row => row[0] === "Live streaming to YouTube")[2], true);
   assert.equal(features.find(row => row[0] === "Share second camera")[1], false);
-  assert.equal(features.find(row => row[0] === "Unique participant codes")[1], null);
+  assert.equal(features.find(row => row[0] === "Unique participant codes")[1], false);
 });
 
 

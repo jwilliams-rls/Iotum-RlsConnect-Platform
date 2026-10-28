@@ -164,7 +164,7 @@
     ],
     [
       "Unique participant codes",
-      null,
+      false,
       true,
       true
     ],
