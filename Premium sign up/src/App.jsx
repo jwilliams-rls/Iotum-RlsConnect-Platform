@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import SignupForm from "./SignupForm";
 import { plans, features, monthlyCents, money, isOrganizationPackageValid, usersPerSharedRoom, organizationUserCents } from "./pricing";
 import "./pricing.css";
+import { Home, Meetings, Webinars, SharedRoomStory } from "./Marketing";
 
-const pages = { home: "Home", features: "Features", rooms: "Shared Rooms", pricing: "Plans & Pricing", signup: "Signup" };
+const pages = { home: "Home", meetings: "Meetings", webinars: "Webinars", features: "Features", rooms: "Shared Rooms", pricing: "Plans & Pricing", signup: "Signup" };
 const logo = `${import.meta.env.BASE_URL}real-life-connect-logo.png`;
 function readPage() {
   const key = window.location.hash.slice(1).split("?")[0];
@@ -19,15 +20,6 @@ function FeatureValue({ value }) {
 }
 function Quantity({ label, value, onChange, min = 0, max = 100 }) {
   return <label className="rlc-quantity"><span>{label}</span><input type="number" min={min} max={max} step="1" value={value} onChange={e => onChange(e.target.value)} required /></label>;
-}
-function MeetingIllustration({ calendar = false }) {
-  return <div className="rlc-illustration" role="img" aria-label={calendar ? "Illustration of a shared-room calendar with separate team reservations" : "Illustration of a video meeting bringing four people together"}>
-    <div className="rlc-illustration-bar"><span className="rlc-live-dot" />{calendar ? "A room for your next conversation" : "Connected, wherever life happens"}</div>
-    {calendar ? <div className="rlc-calendar-art">
-      {["MON", "TUE", "WED"].map(day => <div className="rlc-calendar-day" key={day}><strong>{day}</strong><div className="rlc-calendar-slot">Team meeting</div><div className="rlc-calendar-open">Available</div><div className="rlc-calendar-slot rlc-slot-orange">Community planning</div></div>)}
-    </div> : <div className="rlc-video-art">{["A", "J", "M", "T"].map((letter, i) => <div className={"rlc-person rlc-person-" + i} key={letter}><span>{letter}</span><small>{["Ideas", "Connection", "Collaboration", "Community"][i]}</small></div>)}</div>}
-    <div className="rlc-art-caption">Product concept illustration</div>
-  </div>;
 }
 function Comparison() {
   return <section className="rlc-comparison">
@@ -93,33 +85,13 @@ export default function App() {
     <a href="#main-content" className="rlc-skip" onClick={e => { e.preventDefault(); document.getElementById("main-content").focus(); }}>Skip to content</a>
     <header className="rlc-header">
       <a href="#home" className="rlc-brand"><img className="rlc-logo" src={logo} alt="Real Life Connect home" width="2048" height="1026" /></a>
-      <nav aria-label="Main navigation">{["home", "features", "rooms", "pricing"].map(key => <a key={key} href={"#" + key} aria-current={page === key ? "page" : undefined}>{pages[key]}</a>)}</nav>
+      <nav aria-label="Main navigation">{["meetings", "rooms", "webinars", "features", "pricing"].map(key => <a key={key} href={"#" + key} aria-current={page === key ? "page" : undefined}>{key === "rooms" ? "Shared rooms" : key === "pricing" ? "Pricing" : pages[key]}</a>)}<a className="mc-nav-cta" href="#pricing">Find your plan <span aria-hidden="true">↗</span></a></nav>
     </header>
+    <div className="rlc-preview-note">Website preview · Checkout and new service activation are not yet enabled.</div>
     <main id="main-content" tabIndex={-1}>
-      {page === "home" && <>
-        <section className="rlc-home-hero">
-          <Intro eyebrow="FOR WORK. FOR COMMUNITY. FOR REAL LIFE." title="Your own meeting space. More ways to connect.">
-            <p>Bring your conversations together with video meetings, screen sharing, and collaboration tools. Choose your own plan or give your organization advanced rooms to share.</p>
-            <div className="rlc-actions"><Link page="pricing" className="rlc-button rlc-button-orange">Explore plans</Link><Link page="rooms" className="rlc-text-link">Discover shared rooms →</Link></div>
-          </Intro>
-          <MeetingIllustration />
-        </section>
-        <section className="rlc-value-strip" aria-label="Ways to connect"><span>Personal meeting rooms</span><span>Tools for collaboration</span><span>Optional shared Plus & Pro rooms</span></section>
-        <section className="rlc-section"><p className="rlc-eyebrow">MAKE THE CONVERSATION COUNT</p><h2>Meet, share, and follow through.</h2>
-          <div className="rlc-highlights">{[
-            ["Meet face to face", "Connect your team, meet with clients, or bring your community together with video meetings."],
-            ["Work on the same page", "Share your screen and documents, sketch ideas on a whiteboard, and use in-meeting chat."],
-            ["Keep a useful record", "Basic includes audio recording, meeting summaries, and Smart Search. Choose Plus for video recording or Pro for Cue transcription and AI insights."]
-          ].map(([title, text], i) => <article key={title}><span className="rlc-feature-number">0{i + 1}</span><h3>{title}</h3><p>{text}</p></article>)}</div><Link page="features" className="rlc-text-link">Explore the features →</Link>
-        </section>
-        <section className="rlc-split-panel"><MeetingIllustration calendar /><div><p className="rlc-eyebrow">A DIFFERENT WAY TO EQUIP YOUR TEAM</p><h2>Personal accounts. Shared advanced tools.</h2><p>Not everyone needs an advanced room all day. Give each team member a Basic account, then add shared Plus or Pro rooms for the meetings that need more.</p><p>Our shared-room service is being developed with calendar reservations and up to {usersPerSharedRoom} authorized Basic users per room.</p><Link page="rooms" className="rlc-button">How shared rooms work</Link></div></section>
-        <section className="rlc-section"><p className="rlc-eyebrow">BUILT AROUND YOUR CONVERSATIONS</p><h2>For the people you bring together.</h2><div className="rlc-highlights">{[
-          ["Businesses", "Client conversations, project check-ins, and team collaboration."],
-          ["Churches & nonprofits", "Ministry planning, volunteer coordination, and community meetings."],
-          ["Educators & community groups", "Workshops, mentoring, and collaborative learning."]
-        ].map(([title, text]) => <article key={title}><h3>{title}</h3><p>{text}</p></article>)}</div></section>
-        <section className="rlc-closing"><h2>Find the right space for your next meeting.</h2><Link page="pricing" className="rlc-button rlc-button-orange">See plans & pricing</Link></section>
-      </>}
+      {page === "home" && <Home />}
+      {page === "meetings" && <Meetings><Comparison /></Meetings>}
+      {page === "webinars" && <Webinars />}
       {page === "features" && <>
         <Intro eyebrow="REAL LIFE CONNECT / FEATURES" title="Tools that keep people working together."><p>Start with the essentials in Basic, add collaboration and production tools with Plus, or choose Pro for advanced broadcasting and AI insights.</p></Intro>
         <div className="rlc-highlights rlc-section">{[
@@ -131,11 +103,11 @@ export default function App() {
       </>}
       {page === "rooms" && <>
         <Intro eyebrow="REAL LIFE CONNECT / SHARED ROOMS" title="Advanced rooms your team can share."><p>A personal Basic account for every user. Shared Plus or Pro rooms for the occasions when your team needs more.</p></Intro>
-        <section className="rlc-split-panel"><div><h2>Equip the team without giving everyone a personal Pro room.</h2><p>Each team member keeps their own Basic meeting space. Authorized users reserve the organization’s additional Plus or Pro rooms at available times.</p><p>One shared room supports one meeting at a time and up to {usersPerSharedRoom} assigned Basic users. Add rooms when your team grows or needs simultaneous meetings.</p></div><MeetingIllustration calendar /></section>
+        <SharedRoomStory />
         <section className="rlc-section"><h2>How it is designed to work</h2><ol className="rlc-steps"><li><strong>Add your users.</strong> Every person who reserves or hosts a shared room needs their own paid Basic account.</li><li><strong>Choose your shared rooms.</strong> Add Plus, Pro, or a combination based on the features your organization needs.</li><li><strong>Assign access and reserve.</strong> Your administrator manages room assignments and booking limits; team members choose available times.</li><li><strong>Host and follow up.</strong> Assigned hosts are intended to start independently and receive access to permitted meeting results.</li></ol><aside className="rlc-notes">Shared-room reservations, independent hosting, and follow-up notifications are in development and must pass testing before this service launches.</aside></section>
         <section className="rlc-choice-grid"><article><h2>Your own room</h2><p>Choose an individual Basic, Plus, or Pro subscription when you want personal access without coordinating room reservations with coworkers.</p><Link page="pricing?individual">View individual plans</Link></article><article><h2>Your team’s shared room</h2><p>Choose an organization package when every user needs Basic and the team can take turns using advanced Plus or Pro features.</p><Link page="pricing?organization">Build an organization package</Link></article></section>
         <section className="rlc-example"><p className="rlc-eyebrow">A FIVE-PERSON EXAMPLE</p><h2>{money(monthlyCents(5, 0, 1))} per month</h2><p>Five Basic users at {money(organizationUserCents)} each, plus one shared Pro room at {money(Math.round(plans[2].price * 100))}. Five individual Pro subscriptions would total {money(Math.round(plans[2].price * 100) * 5)} per month.</p><p><strong>The tradeoff:</strong> five personal Basic rooms and one shared Pro meeting at a time, rather than five personal Pro rooms. Taxes and usage charges are additional.</p></section>
-        <section className="rlc-section"><h2>Common questions</h2><details><summary>Does the 10-user limit include meeting guests?</summary><p>No. It limits authorized room users. Plus supports 100 meeting participants; Pro supports 250. Guests do not need a paid Basic account simply to attend.</p></details><details><summary>Does an administrator need a Basic account?</summary><p>Yes, if they reserve or host meetings in a shared room. All assigned room users need Basic accounts.</p></details><details><summary>Can we add another room before reaching 10 users?</summary><p>Yes. Add capacity whenever your team needs more availability or simultaneous meetings.</p></details></section>
+        <section className="rlc-section"><h2>Common questions</h2><details><summary>Does the {usersPerSharedRoom}-user limit include meeting guests?</summary><p>No. It limits authorized room users. Plus supports 100 meeting participants; Pro supports 250. Guests do not need a paid Basic account simply to attend.</p></details><details><summary>Does an administrator need a Basic account?</summary><p>Yes, if they reserve or host meetings in a shared room. All assigned room users need Basic accounts.</p></details><details><summary>Can we add another room before reaching {usersPerSharedRoom} users?</summary><p>Yes. Add capacity whenever your team needs more availability or simultaneous meetings.</p></details></section>
       </>}
       {page === "pricing" && <>
         <Intro eyebrow="REAL LIFE CONNECT / PLANS & PRICING" title="Choose a plan for yourself. Or a package for your team."><p>All prices are monthly in USD. Individual plans include one user account and a personal meeting room. Shared rooms are optional additions to an organization package.</p></Intro>
@@ -148,7 +120,7 @@ export default function App() {
           <Quantity label={`Shared Plus rooms · ${money(Math.round(plans[1].price * 100))} each/month`} value={plusRooms} onChange={setPlusRooms} />
           <Quantity label={`Shared Pro rooms · ${money(Math.round(plans[2].price * 100))} each/month`} value={proRooms} onChange={setProRooms} />
           <p className="rlc-small">Room assignment capacity: {Number.isFinite(roomCount) ? roomCount * usersPerSharedRoom : 0} Basic users.</p>
-          {!organizationValid && <p role="alert" className="rlc-validation">Enter whole-number quantities. Include at least one Basic user and one shared room, with at least one room per 10 users.</p>}
+          {!organizationValid && <p role="alert" className="rlc-validation">Enter whole-number quantities. Include at least one Basic user and one shared room, with at least one room per {usersPerSharedRoom} users.</p>}
           <div className="rlc-total"><span>Monthly subtotal</span><strong>{subtotal === null ? "—" : money(subtotal)}</strong></div><p className="rlc-small">Before applicable taxes and separately charged services.</p><button type="submit" className="rlc-button rlc-button-orange" disabled={!organizationValid}>Continue with organization package</button>
         </form></section>}
         <aside className="rlc-notes">Development preview. Checkout is not enabled; selecting a plan does not charge you or activate a subscription.</aside>
@@ -159,7 +131,7 @@ export default function App() {
           <><h1>Choose your subscription first.</h1><p>Return to pricing to select an individual plan or organization package.</p><Link page="pricing">Choose a subscription</Link></>}
       </section>}
     </main>
-    <footer className="rlc-footer"><img className="rlc-footer-logo" src={logo} alt="Real Life Connect" width="2048" height="1026" loading="lazy" /><nav aria-label="Footer navigation"><Link page="features" className="">Features</Link><Link page="rooms" className="">Shared Rooms</Link><Link page="pricing" className="">Pricing</Link></nav><span>Real Life Systems, LLC</span></footer>
+    <footer className="mc-footer"><div className="mc-footer-top"><div><a href="#home"><img className="rlc-footer-logo" src={logo} alt="Real Life Connect home" width="2048" height="1026" loading="lazy" /></a><p>For work. For community. For real life.<br/>A service from Real Life Systems, LLC.</p></div><nav aria-label="Footer products"><strong>CONNECT YOUR WAY</strong><a href="#meetings">Video meetings</a><a href="#rooms">Shared rooms</a><a href="#webinars">Webinars & events</a></nav><nav aria-label="Footer plans"><strong>FIND YOUR FIT</strong><a href="#pricing?individual">Individual plans</a><a href="#pricing?organization">Organization packages</a><a href="#features">Compare features</a></nav></div><div className="mc-footer-bottom"><span>© {new Date().getFullYear()} Real Life Systems, LLC. All rights reserved.</span><span>Images are AI-generated illustrations. This website is a development preview.</span></div></footer>
   </div>;
 }
 
