@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 2) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 3) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -44,6 +44,21 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
       db.prepare("INSERT INTO catalog_versions VALUES (1, ?, ?)").run(
         JSON.stringify(require("./catalog-seed.json")), new Date().toISOString());
       db.exec("PRAGMA user_version = 2; COMMIT;");
+    } catch (error) { db.exec("ROLLBACK"); db.close(); throw error; }
+  }
+  if (version < 3) {
+    // Correct the original unspecified Basic value without replacing operator edits.
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = db.prepare("SELECT * FROM catalog_versions ORDER BY revision DESC LIMIT 1").get();
+      const catalog = JSON.parse(current.document);
+      const camera = catalog.features.find(row => row[0] === "Share second camera");
+      if (camera && camera[1] === null) {
+        camera[1] = false;
+        db.prepare("INSERT INTO catalog_versions VALUES (?, ?, ?)").run(
+          current.revision + 1, JSON.stringify(catalog), new Date().toISOString());
+      }
+      db.exec("PRAGMA user_version = 3; COMMIT;");
     } catch (error) { db.exec("ROLLBACK"); db.close(); throw error; }
   }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {

@@ -134,7 +134,7 @@
     ],
     [
       "Share second camera",
-      null,
+      false,
       true,
       true
     ],

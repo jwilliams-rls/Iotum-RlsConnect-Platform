@@ -24,7 +24,7 @@ export let features = [
   ["Video recording", false, true, true],
   ["Custom hold music", false, true, true],
   ["Speaker spotlight", false, true, true],
-  ["Share second camera", null, true, true],
+  ["Share second camera", false, true, true],
   ["SMS invitations & reminders", false, "Usage charges apply", "Usage charges apply"],
   ["Company custom branding", false, true, true],
   ["Meeting lock", false, true, true],

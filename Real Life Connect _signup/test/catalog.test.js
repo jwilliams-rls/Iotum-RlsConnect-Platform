@@ -40,7 +40,7 @@ test('version-one databases migrate without changing existing users', () => {
   db.close();
   const store = openStore(filename);
   try {
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 2);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 3);
     assert.equal(store.db.prepare('SELECT email FROM users').get().email, 'existing@example.test');
     assert.equal(readCatalog(store.db).revision, 1);
     for (const mutate of [c => c.plans[0].priceCents = -1, c => c.usageRates[0].priceMicroUsd = 0.5, c => c.features[0][1] = 999]) {
@@ -65,4 +65,25 @@ test('public catalog exposes retail data without supplier costs or edit access',
     assert.doesNotMatch(JSON.stringify(body), /supplier|MicroUsd|webinars/i);
     assert.equal((await fetch(base + '/api/catalog', { method: 'POST' })).status, 404);
   } finally { await new Promise(resolve => server.close(resolve)); store.close(); }
+});
+
+test('version-two camera correction preserves retail edits and catalog history', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'rlc-camera-'));
+  const filename = path.join(dir, 'db.sqlite');
+  let store = openStore(filename);
+  try {
+    const envelope = readCatalog(store.db);
+    envelope.catalog.plans[0].priceCents = 999;
+    envelope.catalog.features.find(row => row[0] === 'Share second camera')[1] = null;
+    saveCatalog(store.db, envelope);
+    store.db.exec('PRAGMA user_version = 2');
+    store.close(); store = openStore(filename);
+    const corrected = readCatalog(store.db);
+    assert.equal(corrected.revision, 3);
+    assert.equal(corrected.catalog.plans[0].priceCents, 999);
+    assert.deepEqual(corrected.catalog.features.find(row => row[0] === 'Share second camera').slice(1), [false, true, true]);
+    assert.equal(store.db.prepare('SELECT count(*) n FROM catalog_versions').get().n, 3);
+    store.close(); store = openStore(filename);
+    assert.equal(readCatalog(store.db).revision, 3);
+  } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });

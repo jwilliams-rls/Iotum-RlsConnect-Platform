@@ -36,7 +36,7 @@ test("signup survives reopening the database; password is salted and verifiable"
     assert.equal(row.password_hash, hash);
     assert.equal(row.status, "pending_payment");
     assert.equal(reopened.db.prepare("SELECT name FROM organizations").get().name, sample.orgName);
-    assert.equal(reopened.db.prepare("PRAGMA user_version").get().user_version, 2);
+    assert.equal(reopened.db.prepare("PRAGMA user_version").get().user_version, 3);
   } finally { reopened.close(); }
 });
 

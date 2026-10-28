@@ -67,3 +67,5 @@ npm run catalog -- import var/catalog-edit.json
 Refresh the website to see meeting price and feature edits. No server restart is needed after an import. Export to a new filename for the next edit: export refuses to overwrite a file, and import rejects stale revisions and invalid amounts. Previous versions remain in `catalog_versions` for recovery. The CLI requires local server access; no browser-based admin editor or public write API exists yet.
 
 `GET /api/catalog` returns only public meeting prices and features. Wholesale costs, usage costs, supplier notes and unfinished webinar packages are excluded. The website loads this catalog before rendering and shows an unavailable message if the backend cannot be reached, rather than displaying old hardcoded prices. Existing subscriptions/orders are not repriced: subscription billing is not connected yet.
+
+Schema version 3 corrects the original unspecified Basic second-camera value to not included. Existing pricing edits are preserved, and the earlier catalog revision is retained. Explicit operator changes to that feature are not overwritten. Restart the backend after pulling this update.
