@@ -8,9 +8,9 @@ import {
   Alert
 } from "@mui/material";
 
-export default function SignupForm({ onSignupSuccess }) {
+export default function SignupForm({ onSignupSuccess, accountType = "organization" }) {
   const [form, setForm] = useState({
-    orgName: "",
+    orgName: accountType === "individual" ? "Individual account" : "",
     adminName: "",
     adminEmail: "",
     password: ""
@@ -39,7 +39,7 @@ export default function SignupForm({ onSignupSuccess }) {
       if (!res.ok) throw new Error(await res.text());
       setSuccess(true);
       setForm({
-        orgName: "",
+        orgName: accountType === "individual" ? "Individual account" : "",
         adminName: "",
         adminEmail: "",
         password: ""
@@ -53,12 +53,12 @@ export default function SignupForm({ onSignupSuccess }) {
   return (
     <Paper elevation={3} sx={{ maxWidth: 400, mx: "auto", mt: 6, p: 3 }}>
       <Typography variant="h5" gutterBottom>
-        Create Organization Account
+        {accountType === "individual" ? "Create Your Account" : "Create Organization Account"}
       </Typography>
       {error && <Alert severity="error">{error}</Alert>}
-      {success && <Alert severity="success">Signup successful!</Alert>}
+      {success && <Alert severity="success">Test signup saved. No payment was collected and no Iotum account was activated.</Alert>}
       <Box component="form" onSubmit={handleSubmit} mt={2}>
-        <TextField
+        {accountType !== "individual" && <TextField
           label="Organization Name"
           name="orgName"
           value={form.orgName}
@@ -66,9 +66,9 @@ export default function SignupForm({ onSignupSuccess }) {
           fullWidth
           margin="normal"
           required
-        />
+        />}
         <TextField
-          label="Admin Name"
+          label={accountType === "individual" ? "Your Name" : "Administrator Name"}
           name="adminName"
           value={form.adminName}
           onChange={handleChange}
@@ -77,7 +77,7 @@ export default function SignupForm({ onSignupSuccess }) {
           required
         />
         <TextField
-          label="Admin Email"
+          label={accountType === "individual" ? "Email" : "Administrator Email"}
           name="adminEmail"
           value={form.adminEmail}
           onChange={handleChange}
@@ -94,6 +94,8 @@ export default function SignupForm({ onSignupSuccess }) {
           fullWidth
           margin="normal"
           type="password"
+          helperText="Use 12–256 characters. Use fictional details for this development test."
+          slotProps={{ htmlInput: { minLength: 12, maxLength: 256 } }}
           required
         />
         <Button
@@ -103,7 +105,7 @@ export default function SignupForm({ onSignupSuccess }) {
           fullWidth
           sx={{ mt: 2 }}
         >
-          Create Account
+          Submit Test Signup
         </Button>
       </Box>
     </Paper>

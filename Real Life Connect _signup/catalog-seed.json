@@ -1,0 +1,310 @@
+{
+  "currency": "USD",
+  "organizationUserCents": 599,
+  "usersPerSharedRoom": 10,
+  "webinarDays": 7,
+  "plans": [
+    {
+      "id": "basic",
+      "name": "Basic",
+      "participants": 25,
+      "code": "reallife_basic",
+      "priceCents": 799,
+      "supplierMonthlyCents": 299
+    },
+    {
+      "id": "plus",
+      "name": "Plus",
+      "participants": 100,
+      "code": "reallife_plus",
+      "priceCents": 1699,
+      "supplierMonthlyCents": 499
+    },
+    {
+      "id": "pro",
+      "name": "Pro",
+      "participants": 250,
+      "code": "reallife_pro",
+      "priceCents": 2499,
+      "supplierMonthlyCents": 899
+    }
+  ],
+  "features": [
+    [
+      "Meeting participants",
+      25,
+      100,
+      250
+    ],
+    [
+      "Virtual backgrounds",
+      true,
+      true,
+      true
+    ],
+    [
+      "Screen sharing",
+      true,
+      true,
+      true
+    ],
+    [
+      "Document sharing",
+      true,
+      true,
+      true
+    ],
+    [
+      "Annotation and laser pointer",
+      true,
+      true,
+      true
+    ],
+    [
+      "Whiteboard",
+      true,
+      true,
+      true
+    ],
+    [
+      "APIs",
+      true,
+      true,
+      true
+    ],
+    [
+      "Webhooks",
+      true,
+      true,
+      true
+    ],
+    [
+      "In-meeting chat",
+      true,
+      true,
+      true
+    ],
+    [
+      "Meeting scheduling",
+      true,
+      true,
+      true
+    ],
+    [
+      "Meeting summaries & Smart Search",
+      true,
+      true,
+      true
+    ],
+    [
+      "Waiting room",
+      true,
+      true,
+      true
+    ],
+    [
+      "Moderator controls",
+      true,
+      true,
+      true
+    ],
+    [
+      "Audio recording",
+      true,
+      true,
+      true
+    ],
+    [
+      "Video recording",
+      false,
+      true,
+      true
+    ],
+    [
+      "Custom hold music",
+      false,
+      true,
+      true
+    ],
+    [
+      "Speaker spotlight",
+      false,
+      true,
+      true
+    ],
+    [
+      "Share second camera",
+      false,
+      true,
+      true
+    ],
+    [
+      "SMS invitations & reminders",
+      false,
+      "Usage charges apply",
+      "Usage charges apply"
+    ],
+    [
+      "Company custom branding",
+      false,
+      true,
+      true
+    ],
+    [
+      "Meeting lock",
+      false,
+      true,
+      true
+    ],
+    [
+      "Secure Meetings feature",
+      false,
+      true,
+      true
+    ],
+    [
+      "Unique participant codes",
+      false,
+      true,
+      true
+    ],
+    [
+      "Enhanced caller ID",
+      false,
+      true,
+      true
+    ],
+    [
+      "Private chat",
+      false,
+      true,
+      true
+    ],
+    [
+      "Breakout rooms",
+      false,
+      true,
+      true
+    ],
+    [
+      "Polling",
+      false,
+      true,
+      true
+    ],
+    [
+      "Stage view",
+      false,
+      true,
+      true
+    ],
+    [
+      "Call out to participants",
+      false,
+      true,
+      true
+    ],
+    [
+      "Live streaming to YouTube",
+      false,
+      true,
+      true
+    ],
+    [
+      "Dual monitor support",
+      false,
+      true,
+      true
+    ],
+    [
+      "Live streaming",
+      false,
+      false,
+      true
+    ],
+    [
+      "Instant breakout",
+      false,
+      false,
+      true
+    ],
+    [
+      "Multi-camera broadcast",
+      false,
+      false,
+      true
+    ],
+    [
+      "Cue meeting transcription & AI insights",
+      false,
+      false,
+      true
+    ]
+  ],
+  "webinars": [
+    {
+      "id": "webinar_500",
+      "participants": 500,
+      "priceCents": null,
+      "supplierMonthlyCents": 1500
+    },
+    {
+      "id": "webinar_1000",
+      "participants": 1000,
+      "priceCents": null,
+      "supplierMonthlyCents": 4500
+    },
+    {
+      "id": "webinar_3000",
+      "participants": 3000,
+      "priceCents": null,
+      "supplierMonthlyCents": 14999
+    },
+    {
+      "id": "webinar_5000",
+      "participants": 5000,
+      "priceCents": null,
+      "supplierMonthlyCents": 45099
+    }
+  ],
+  "usageRates": [
+    {
+      "id": "transcription",
+      "unit": "minute",
+      "supplierMicroUsd": 45000,
+      "priceMicroUsd": null
+    },
+    {
+      "id": "sms_na",
+      "unit": "text",
+      "supplierMicroUsd": 8000,
+      "priceMicroUsd": null
+    },
+    {
+      "id": "dial_out_na",
+      "unit": "minute",
+      "supplierMicroUsd": 15000,
+      "priceMicroUsd": null
+    },
+    {
+      "id": "storage_tier_1",
+      "unit": "GB-month",
+      "supplierMicroUsd": 180000,
+      "priceMicroUsd": null
+    },
+    {
+      "id": "storage_tier_2",
+      "unit": "GB-month",
+      "supplierMicroUsd": 130000,
+      "priceMicroUsd": null
+    },
+    {
+      "id": "storage_tier_3",
+      "unit": "GB-month",
+      "supplierMicroUsd": 90000,
+      "priceMicroUsd": null
+    }
+  ],
+  "supplierNotes": "Reference rates from supplied Iotum rate card; confirm current contract, host charges, tier thresholds and allowances before selling. Webinar retail prices and usage markups are not set. Seven-day expiry and deletion are policy only; automation is not implemented.",
+  "organizationUserSupplierCents": 299
+}
