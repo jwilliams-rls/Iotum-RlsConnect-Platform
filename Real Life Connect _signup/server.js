@@ -57,7 +57,13 @@ if (require.main === module) {
   process.umask(0o077);
   const store = openStore();
   const port = Number(process.env.PORT || 4001);
-  const server = createApp(store).listen(port, "127.0.0.1", () => {
+  const server = createApp(store).listen(port, "127.0.0.1", (error) => {
+    if (error) {
+      console.error(`Backend could not start on port ${port}. Stop the existing backend before restarting.`);
+      store.close();
+      process.exitCode = 1;
+      return;
+    }
     console.log(`Server running on http://localhost:${port}`);
     console.log("SQLite storage ready. Signup is development-only; billing and activation are not connected.");
   });

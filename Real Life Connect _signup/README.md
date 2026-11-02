@@ -71,3 +71,44 @@ Refresh the website to see meeting price and feature edits. No server restart is
 Schema version 3 corrects the original unspecified Basic second-camera value to not included. Existing pricing edits are preserved, and the earlier catalog revision is retained. Explicit operator changes to that feature are not overwritten. Restart the backend after pulling this update.
 
 Schema version 4 applies the owner clarification: Basic includes Audio recording, but all subsequent feature rows are not included. Migration changes only those Basic cells and preserves Plus/Pro, prices, costs, signups and catalog history.
+
+## Iotum operator test provisioning
+
+This is a local operator workflow, not a public activation endpoint. It does not connect Stripe, mark a customer paid, implement website login/SSO, or create shared-room reservations. The owner confirms test provisioning is within the existing minimum account commitment. Catalog supplier costs remain reference costs, not a claim that each test causes a new charge.
+
+Use the existing `IOTUM_API_TOKEN` Codespaces secret. No API token, auth session, Iotum password, moderator PIN, SSO key or password-creation link is logged or saved. Requests use the fixed reseller portal over HTTPS. Do not paste credentials into chat or put them in Git.
+
+In this backend directory, run the read-only first step:
+
+```bash
+npm run iotum -- check
+```
+
+This authenticates and displays product names/slugs and IDs if supplied. It creates nothing and does not need the website servers stopped. Missing-token output means the Codespace needs its existing repository secret loaded; do not replace it with a token pasted into the terminal.
+
+For the controlled test, choose a local signup using an email you control. `npm run iotum -- signups` lists local IDs and emails; treat that output as private. Submit a development signup first if no suitable test exists. Never reuse a production customer's identity for this test.
+
+Prepare a local draft using your actual test email, the VERIFIED numeric Basic product ID, and a unique subdomain (replace the example arguments):
+
+```bash
+npm run iotum -- prepare your-test-email@example.com 123 rlc-test-unique
+```
+
+`123` is only an example, not a verified Iotum product ID. The documented product-list response does not always provide numeric IDs; if missing, obtain the Basic product ID from your Iotum configuration or representative. Do not substitute the plan slug for a numeric product ID or guess. Where the API returns an ID, the code checks that it matches the Basic slug before writing. The default organization subscription is not assumed: company creation explicitly supplies this product ID, then the active subscription is checked before creating a host. A mismatch stops the workflow without silently changing/canceling subscriptions.
+
+Review the draft (company, user, subdomain, product and plan) and its job ID. It has made no Iotum writes. Then:
+
+```bash
+npm run iotum -- status JOB_ID
+npm run iotum -- activate JOB_ID
+```
+
+Activation creates real Iotum resources within the owner's authorized test allocation. The new administrator receives no welcome email, uses no automatic recording/streaming, and has invitation/reminder/summary notifications enabled. Default third-party services still depend on provider settings and plan entitlements.
+
+The resulting company ID, host ID and meeting URL are stored in private SQLite table `iotum_provisioning` (schema version 5). This limited initial workflow supports one new test company and admin per local organization, not adding further hosts to an existing organization. Back up the database normally. The test leaves local signup status `pending_payment`, and uses separate `ready_test` state so provisioning never pretends a customer paid.
+
+To access the built-in UI for the first test, open the existing Iotum portal in your browser and establish that host's password through its password-reset flow. Sign in with that host's email, not the reseller administrator. Verify that the dashboard can schedule, start, and join meetings. The saved meeting URL is a meeting/attendee URL; it does not authenticate the host or provide a website SSO link. Future website login/SSO will supply authenticated access.
+
+Interrupted writes are not retried automatically. `company_creating`, `host_creating`, or `review_required` means inspect the reseller panel and recorded IDs before doing anything else. No automatic remote deletion, cancellation or duplicate creation is attempted. A known `company_created` job can resume read checks and host creation without creating the company again. If host creation succeeds but response validation fails, the host ID is retained for reconciliation. Password reset and dashboard access must be tested in the live portal; mocked tests cannot establish those behaviors.
+
+Sources: Iotum community REST API sections 4.1, 5.1, 5.8 and 6.1, https://github.com/iotum/community/wiki/REST-APIs (read via indexed mirror when the original page was unavailable).

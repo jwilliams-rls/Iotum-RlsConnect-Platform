@@ -6,7 +6,8 @@
     "start": "node server.js",
     "test": "node --test test/*.test.js",
     "backup": "node backup.js",
-    "catalog": "node catalog-cli.js"
+    "catalog": "node catalog-cli.js",
+    "iotum": "node iotum-cli.js"
   },
   "keywords": [],
   "author": "",
