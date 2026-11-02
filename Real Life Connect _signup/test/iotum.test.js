@@ -6,7 +6,7 @@ const { createIotumClient } = require('../iotum-client');
 function setup() {
   const store = openStore(':memory:');
   store.createSignup({ orgName: 'Test Company', adminName: 'Test Admin', adminEmail: 'test@example.test', passwordHash: 'fixture' });
-  const job = prepareTest(store.db, { email: 'test@example.test', productId: 7, subdomain: 'rlc-test-demo' });
+  const job = prepareTest(store.db, { email: 'test@example.test', productId: 7, subdomain: 'rlc-test-demo', companyName: 'Real Life Connect Test' });
   return { store, job };
 }
 function fakeClient({ failAt, wrongPlan = false } = {}) {
@@ -25,6 +25,7 @@ test('prepared test performs no provider writes; completion is repeatable and ke
   const { store, job } = setup(); const client = fakeClient();
   try {
     assert.equal(job.state, 'prepared');
+    assert.equal(job.draft.companyName, 'Real Life Connect Test');
     assert.throws(() => prepareTest(store.db, { email: 'test@example.test', productId: 7, subdomain: 'another-test' }), /UNIQUE/);
     const completed = await activateTest(store.db, job.id, client);
     assert.equal(completed.state, 'ready_test'); assert.equal(completed.company_id, 101); assert.equal(completed.host_id, 301);

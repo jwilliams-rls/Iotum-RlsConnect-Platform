@@ -2,13 +2,14 @@ const { randomUUID } = require('node:crypto');
 const { readCatalog } = require('./catalog');
 const { DEFAULT_ORIGIN } = require('./iotum-client');
 const id = value => Number.isSafeInteger(value) && value > 0;
-function prepareTest(db, { email, productId, subdomain }) {
+function prepareTest(db, { email, productId, subdomain, companyName }) {
   if ((productId !== null && !id(productId)) || typeof subdomain !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/.test(subdomain)) throw new Error('Supply a positive numeric product ID (or null for reseller default) and a valid 3–50 character subdomain.');
   const user = db.prepare(`SELECT u.id, u.name, u.email, u.organization_id, o.name org_name FROM users u JOIN organizations o ON o.id = u.organization_id WHERE u.email = ?`).get(email);
   if (!user) throw new Error('No local signup matches that email. Submit a development signup first using an email you control.');
+  if (companyName !== undefined && (typeof companyName !== 'string' || !companyName.trim() || companyName.trim().length > 200)) throw new Error('Company name must be 1–200 characters.');
   const plan = readCatalog(db).catalog.plans.find(p => p.id === 'basic');
   if (!plan) throw new Error('Basic plan is missing.');
-  const draft = { userId: user.id, organizationId: user.organization_id, companyName: user.org_name,
+  const draft = { userId: user.id, organizationId: user.organization_id, companyName: companyName?.trim() || user.org_name,
     name: user.name, email: user.email, subdomain, productId, planSlug: plan.code,
     supplierMonthlyCents: plan.supplierMonthlyCents, catalogRevision: readCatalog(db).revision,
     origin: DEFAULT_ORIGIN, purpose: 'operator test within existing minimum commitment; no customer payment collected' };

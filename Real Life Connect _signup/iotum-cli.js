@@ -24,9 +24,9 @@ function display(job) {
     if (command === 'signups') {
       console.table(store.db.prepare('SELECT id, name, email, status FROM users ORDER BY created_at DESC').all());
     } else if (command === 'prepare') {
-      const [email, productId, subdomain] = args;
-      if (!email || !productId || !subdomain) throw new Error('Usage: npm run iotum -- prepare EMAIL BASIC_PRODUCT_ID_OR_default UNIQUE_SUBDOMAIN');
-      display(prepareTest(store.db, { email, productId: productId === 'default' ? null : Number(productId), subdomain }));
+      const [email, productId, subdomain, companyName] = args;
+      if (!email || !productId || !subdomain) throw new Error('Usage: npm run iotum -- prepare EMAIL BASIC_PRODUCT_ID_OR_default UNIQUE_SUBDOMAIN ["Company Name"]');
+      display(prepareTest(store.db, { email, productId: productId === 'default' ? null : Number(productId), subdomain, companyName }));
       console.log('Draft saved locally. No Iotum account was created. Review before activating.');
     } else if (command === 'status' && args[0]) {
       display(getTest(store.db, args[0]));
@@ -34,6 +34,6 @@ function display(job) {
       display(await activateTest(store.db, args[0], createIotumClient()));
       console.log(`Test host is provisioned. Sign into the Iotum portal at ${DEFAULT_ORIGIN} using the host email; use its password-reset flow to establish the separate Iotum password.`);
       console.log('The meeting URL is an attendee link, not an authenticated host login. Our website SSO is not connected yet.');
-    } else throw new Error('Commands: check | signups | prepare EMAIL PRODUCT_ID SUBDOMAIN | status JOB_ID | activate JOB_ID');
+    } else throw new Error('Commands: check | signups | prepare EMAIL PRODUCT_ID SUBDOMAIN [COMPANY_NAME] | status JOB_ID | activate JOB_ID');
   } finally { store.close(); }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
