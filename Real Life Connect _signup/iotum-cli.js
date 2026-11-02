@@ -25,8 +25,8 @@ function display(job) {
       console.table(store.db.prepare('SELECT id, name, email, status FROM users ORDER BY created_at DESC').all());
     } else if (command === 'prepare') {
       const [email, productId, subdomain] = args;
-      if (!email || !productId || !subdomain) throw new Error('Usage: npm run iotum -- prepare EMAIL NUMERIC_BASIC_PRODUCT_ID UNIQUE_SUBDOMAIN');
-      display(prepareTest(store.db, { email, productId: Number(productId), subdomain }));
+      if (!email || !productId || !subdomain) throw new Error('Usage: npm run iotum -- prepare EMAIL BASIC_PRODUCT_ID_OR_default UNIQUE_SUBDOMAIN');
+      display(prepareTest(store.db, { email, productId: productId === 'default' ? null : Number(productId), subdomain }));
       console.log('Draft saved locally. No Iotum account was created. Review before activating.');
     } else if (command === 'status' && args[0]) {
       display(getTest(store.db, args[0]));

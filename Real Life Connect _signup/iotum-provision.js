@@ -3,7 +3,7 @@ const { readCatalog } = require('./catalog');
 const { DEFAULT_ORIGIN } = require('./iotum-client');
 const id = value => Number.isSafeInteger(value) && value > 0;
 function prepareTest(db, { email, productId, subdomain }) {
-  if (!id(productId) || typeof subdomain !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/.test(subdomain)) throw new Error('Supply a positive numeric product ID and a valid 3–50 character subdomain.');
+  if ((productId !== null && !id(productId)) || typeof subdomain !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/.test(subdomain)) throw new Error('Supply a positive numeric product ID (or null for reseller default) and a valid 3–50 character subdomain.');
   const user = db.prepare(`SELECT u.id, u.name, u.email, u.organization_id, o.name org_name FROM users u JOIN organizations o ON o.id = u.organization_id WHERE u.email = ?`).get(email);
   if (!user) throw new Error('No local signup matches that email. Submit a development signup first using an email you control.');
   const plan = readCatalog(db).catalog.plans.find(p => p.id === 'basic');
@@ -42,14 +42,14 @@ async function activateTest(db, jobId, client) {
   // Product IDs are not documented in every fetch_products response. Require operator verification;
   // when an ID is returned, also verify the pairing before any write.
   const product = products.find(p => p.slug === d.planSlug);
-  if (product.id !== undefined && Number(product.id) !== d.productId) throw new Error('Product ID does not match the reviewed plan.');
+  if (d.productId !== null && product.id !== undefined && Number(product.id) !== d.productId) throw new Error('Product ID does not match the reviewed plan.');
   function state(value) { db.prepare('UPDATE iotum_provisioning SET state = ?, updated_at = ? WHERE id = ?').run(value, new Date().toISOString(), jobId); }
   if (job.state === 'prepared') {
     // Commit before the remote write. A timeout/crash cannot cause a second create on retry.
     const claimed = db.prepare("UPDATE iotum_provisioning SET state = 'company_creating', updated_at = ? WHERE id = ? AND state = 'prepared'").run(new Date().toISOString(), jobId);
     if (claimed.changes !== 1) throw new Error('Another process claimed this job.');
     try {
-      const company = await client.post('/company/create', { name: d.companyName, subdomain: d.subdomain, customer_id: d.organizationId, product_id: d.productId });
+      const company = await client.post('/company/create', { name: d.companyName, subdomain: d.subdomain, customer_id: d.organizationId, ...(d.productId === null ? {} : { product_id: d.productId }) });
       if (!id(company.id)) throw new Error('Company creation returned no valid ID.');
       db.prepare("UPDATE iotum_provisioning SET company_id = ?, state = 'company_created', updated_at = ? WHERE id = ?").run(company.id, new Date().toISOString(), jobId);
     } catch (error) { state('review_required'); throw error; }

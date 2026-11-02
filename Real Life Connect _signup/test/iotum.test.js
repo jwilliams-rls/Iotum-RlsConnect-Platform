@@ -66,3 +66,16 @@ test('client redacts provider errors, refuses redirects and does not expose API 
   } });
   await assert.rejects(client.authenticate(), error => error.message.includes('401') && !error.message.includes('SECRET'));
 });
+
+test('reseller-default creation omits product_id and verifies Basic before assigning the host', async () => {
+  const store = openStore(':memory:');
+  try {
+    store.createSignup({ orgName: 'Default test', adminName: 'Admin', adminEmail: 'default@example.test', passwordHash: 'fixture' });
+    const job = prepareTest(store.db, { email: 'default@example.test', productId: null, subdomain: 'default-test' });
+    const client = fakeClient();
+    const result = await activateTest(store.db, job.id, client);
+    assert.equal(result.state, 'ready_test');
+    assert.equal(Object.hasOwn(client.calls.find(c => c.endpoint === '/company/create').payload, 'product_id'), false);
+    assert.deepEqual(client.calls.find(c => c.endpoint === '/host/create').payload.subscription_ids, [201]);
+  } finally { store.close(); }
+});

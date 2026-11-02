@@ -88,7 +88,7 @@ This authenticates and displays product names/slugs and IDs if supplied. It crea
 
 For the controlled test, choose a local signup using an email you control. `npm run iotum -- signups` lists local IDs and emails; treat that output as private. Submit a development signup first if no suitable test exists. Never reuse a production customer's identity for this test.
 
-Prepare a local draft using your actual test email, the VERIFIED numeric Basic product ID, and a unique subdomain (replace the example arguments):
+Prepare a local draft using your actual test email, the VERIFIED numeric Basic product ID (or `default` to use the reseller default), and a unique subdomain (replace the example arguments):
 
 ```bash
 npm run iotum -- prepare your-test-email@example.com 123 rlc-test-unique
@@ -112,3 +112,5 @@ To access the built-in UI for the first test, open the existing Iotum portal in 
 Interrupted writes are not retried automatically. `company_creating`, `host_creating`, or `review_required` means inspect the reseller panel and recorded IDs before doing anything else. No automatic remote deletion, cancellation or duplicate creation is attempted. A known `company_created` job can resume read checks and host creation without creating the company again. If host creation succeeds but response validation fails, the host ID is retained for reconciliation. Password reset and dashboard access must be tested in the live portal; mocked tests cannot establish those behaviors.
 
 Sources: Iotum community REST API sections 4.1, 5.1, 5.8 and 6.1, https://github.com/iotum/community/wiki/REST-APIs (read via indexed mirror when the original page was unavailable).
+
+If the API does not supply a numeric product ID, use `default` in the prepare command instead of a number. This omits optional `product_id` from company creation. Iotum applies the reseller default. The code then verifies that the company has exactly one active subscription and that it is `reallife_basic` before creating any host. If the default differs, the job stops with the company ID retained; inspect and correct that new test company's subscription before resuming. No second subscription is automatically added and nothing is canceled. The earlier explicit-product guidance still applies when supplying a numeric ID.
