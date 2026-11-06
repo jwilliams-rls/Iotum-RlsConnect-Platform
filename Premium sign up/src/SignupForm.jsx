@@ -56,7 +56,7 @@ export default function SignupForm({ onSignupSuccess, accountType = "organizatio
         {accountType === "individual" ? "Create Your Account" : "Create Organization Account"}
       </Typography>
       {error && <Alert severity="error">{error}</Alert>}
-      {success && <Alert severity="success">Test signup saved. No payment was collected and no Iotum account was activated.</Alert>}
+      {success && <Alert severity="success">Signup saved. No payment was collected and no meeting account was activated.</Alert>}
       <Box component="form" onSubmit={handleSubmit} mt={2}>
         {accountType !== "individual" && <TextField
           label="Organization Name"
@@ -111,3 +111,4 @@ export default function SignupForm({ onSignupSuccess, accountType = "organizatio
     </Paper>
   );
 }
+

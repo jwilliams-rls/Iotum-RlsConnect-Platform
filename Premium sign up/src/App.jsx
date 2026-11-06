@@ -88,13 +88,14 @@ export default function App() {
     window.location.hash = "signup";
   }
 
+  const accountView = Boolean(user) && (page === "account" || page === "signin");
   return <div className="rlc-page">
     <a href="#main-content" className="rlc-skip" onClick={e => { e.preventDefault(); document.getElementById("main-content").focus(); }}>Skip to content</a>
     <header className="rlc-header">
       <a href="#home" className="rlc-brand"><img className="rlc-logo" src={logo} alt="Real Life Connect home" width="2048" height="1026" /></a>
-      <nav aria-label="Main navigation">{["meetings", "rooms", "webinars", "features", "pricing"].map(key => <a key={key} href={"#" + key} aria-current={page === key ? "page" : undefined}>{key === "rooms" ? "Shared rooms" : key === "pricing" ? "Pricing" : pages[key]}</a>)}<AccountMenu user={user} onSignedOut={signedOut}/><a className="mc-nav-cta" href="#pricing">Find your plan <span aria-hidden="true">↗</span></a></nav>
+      <nav aria-label="Main navigation">{!accountView && ["meetings", "rooms", "webinars", "features", "pricing"].map(key => <a key={key} href={"#" + key} aria-current={page === key ? "page" : undefined}>{key === "rooms" ? "Shared rooms" : key === "pricing" ? "Pricing" : pages[key]}</a>)}<AccountMenu user={user} onSignedOut={signedOut}/>{!accountView && <a className="mc-nav-cta" href="#pricing">Find your plan <span aria-hidden="true">↗</span></a>}</nav>
     </header>
-    <div className="rlc-preview-note">Website preview · Checkout and new service activation are not yet enabled.</div>
+    {!accountView && <div className="rlc-preview-note">Website preview · Checkout and new service activation are not yet enabled.</div>}
     <main id="main-content" tabIndex={-1}>
       {page === "signin" && (user ? <Dashboard onSignedOut={signedOut}/> : <SignIn onSignedIn={setUser}/>)}
       {page === "account" && (checkingSession ? <p role="status">Checking your session…</p> : user ? <Dashboard onSignedOut={signedOut}/> : <SignIn onSignedIn={setUser}/>)}
@@ -136,11 +137,11 @@ export default function App() {
         <Comparison />
       </>}
       {page === "signup" && <section className="rlc-signup"><Link page="pricing" className="rlc-back">← Back to plans</Link><p className="rlc-eyebrow">YOUR SELECTED SUBSCRIPTION</p>
-        {selection ? <><h1>{selection.kind === "individual" ? "Your meeting space starts here." : "Bring your organization together."}</h1><p>{selection.kind === "individual" ? plans.find(p => p.id === selection.plan).name + " · one user · personal room" : selection.users + " Basic users · " + selection.plusRooms + " shared Plus rooms · " + selection.proRooms + " shared Pro rooms"}</p><p><strong>{money(selection.total)} per month</strong> before applicable taxes and usage charges.</p><div role="status" className="rlc-notes">Development test only. The form saves your signup details in SQLite. Plan selections are currently a preview and are not saved as an order. No payment is collected and no Iotum subscription is activated.</div><SignupForm key={selection.kind + (selection.plan || "")} accountType={selection.kind} /></> :
+        {selection ? <><h1>{selection.kind === "individual" ? "Your meeting space starts here." : "Bring your organization together."}</h1><p>{selection.kind === "individual" ? plans.find(p => p.id === selection.plan).name + " · one user · personal room" : selection.users + " Basic users · " + selection.plusRooms + " shared Plus rooms · " + selection.proRooms + " shared Pro rooms"}</p><p><strong>{money(selection.total)} per month</strong> before applicable taxes and usage charges.</p><div role="status" className="rlc-notes">Development test only. No payment is collected and no subscription is activated by this signup.</div><SignupForm key={selection.kind + (selection.plan || "")} accountType={selection.kind} /></> :
           <><h1>Choose your subscription first.</h1><p>Return to pricing to select an individual plan or organization package.</p><Link page="pricing">Choose a subscription</Link></>}
       </section>}
     </main>
-    <footer className="mc-footer"><div className="mc-footer-top"><div><a href="#home"><img className="rlc-footer-logo" src={logo} alt="Real Life Connect home" width="2048" height="1026" loading="lazy" /></a><p>For work. For community. For real life.<br/>A service from Real Life Systems, LLC.</p></div><nav aria-label="Footer products"><strong>CONNECT YOUR WAY</strong><a href="#meetings">Video meetings</a><a href="#rooms">Shared rooms</a><a href="#webinars">Webinars & events</a></nav><nav aria-label="Footer plans"><strong>FIND YOUR FIT</strong><a href="#pricing?individual">Individual plans</a><a href="#pricing?organization">Organization packages</a><a href="#features">Compare features</a></nav></div><div className="mc-footer-bottom"><span>© {new Date().getFullYear()} Real Life Systems, LLC. All rights reserved.</span><span>Images are AI-generated illustrations. This website is a development preview.</span></div></footer>
+    {accountView ? <footer className="ac-footer">© {new Date().getFullYear()} Real Life Systems, LLC · Real Life Connect</footer> : <footer className="mc-footer"><div className="mc-footer-top"><div><a href="#home"><img className="rlc-footer-logo" src={logo} alt="Real Life Connect home" width="2048" height="1026" loading="lazy" /></a><p>For work. For community. For real life.<br/>A service from Real Life Systems, LLC.</p></div><nav aria-label="Footer products"><strong>CONNECT YOUR WAY</strong><a href="#meetings">Video meetings</a><a href="#rooms">Shared rooms</a><a href="#webinars">Webinars & events</a></nav><nav aria-label="Footer plans"><strong>FIND YOUR FIT</strong><a href="#pricing?individual">Individual plans</a><a href="#pricing?organization">Organization packages</a><a href="#features">Compare features</a></nav></div><div className="mc-footer-bottom"><span>© {new Date().getFullYear()} Real Life Systems, LLC. All rights reserved.</span><span>Images are AI-generated illustrations. This website is a development preview.</span></div></footer>}
   </div>;
 }
 
