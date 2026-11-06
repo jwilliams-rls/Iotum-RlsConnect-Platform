@@ -30,10 +30,14 @@ function display(job) {
       console.log('Draft saved locally. No Iotum account was created. Review before activating.');
     } else if (command === 'status' && args[0]) {
       display(getTest(store.db, args[0]));
+    } else if (command === 'test-role' && args[0]) {
+      const { testHostRole } = require('./iotum-role-test');
+      console.log(JSON.stringify(await testHostRole(store.db, args[0], createIotumClient(), args[1]), null, 2));
+      console.log('Sign out of the test host portal and sign back in to check its menus. Website administrator permissions are separate.');
     } else if (command === 'activate' && args[0]) {
       display(await activateTest(store.db, args[0], createIotumClient()));
       console.log(`Test host is provisioned. Sign into the Iotum portal at ${DEFAULT_ORIGIN} using the host email; use its password-reset flow to establish the separate Iotum password.`);
       console.log('The meeting URL is an attendee link, not an authenticated host login. Our website SSO is not connected yet.');
-    } else throw new Error('Commands: check | signups | prepare EMAIL PRODUCT_ID SUBDOMAIN [COMPANY_NAME] | status JOB_ID | activate JOB_ID');
+    } else throw new Error('Commands: check | signups | prepare EMAIL PRODUCT_ID SUBDOMAIN [COMPANY_NAME] | status JOB_ID | activate JOB_ID | test-role JOB_ID [HOST|COMPANY_ADMIN]');
   } finally { store.close(); }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
