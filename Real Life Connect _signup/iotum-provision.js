@@ -65,13 +65,13 @@ async function activateTest(db, jobId, client) {
   if (claimed.changes !== 1) throw new Error('Another process claimed this job.');
   try {
     const host = await client.post('/host/create', { company_id: job.company_id, name: d.name, email: d.email,
-      role: 'COMPANY_ADMIN', subscription_ids: [active[0].id], no_welcome_email: true,
+      role: 'HOST', subscription_ids: [active[0].id], no_welcome_email: true,
       auto_record: 'none', auto_stream: 'none', native_streaming: false,
       disable_emails: { conference_invitations: false, conference_reminders: false, conference_summaries: false, transcription_summaries: false } });
     if (!id(host.host_id)) throw new Error('Host creation returned no valid ID.');
     // Save the ID before validating remaining response fields, so partial responses can be reconciled.
     db.prepare('UPDATE iotum_provisioning SET host_id = ? WHERE id = ?').run(host.host_id, jobId);
-    if (host.company_id !== job.company_id || host.plan_slug !== d.planSlug) throw new Error('Host assignment does not match the reviewed company and plan.');
+    if (host.company_id !== job.company_id || host.plan_slug !== d.planSlug || host.role !== 'HOST') throw new Error('Host assignment does not match the reviewed company and plan.');
     const meetingUrl = safeProviderUrl(host.meeting_url);
     db.prepare("UPDATE iotum_provisioning SET meeting_url = ?, state = 'ready_test', updated_at = ? WHERE id = ?").run(meetingUrl, new Date().toISOString(), jobId);
     // Never mark a customer paid/active: this is a separately approved operator test.

@@ -1,6 +1,6 @@
 # Real Life Connect signup backend
 
-Development-only signup persistence. Stripe payment, Iotum provisioning, login sessions, email verification and room reservations are not implemented yet. A saved signup remains `pending_payment`, not an active subscription.
+Development-only signup persistence. Stripe payment, automatic customer provisioning, email verification and room reservations are not implemented yet. Website login and operator-controlled Iotum test provisioning are available. A saved signup remains `pending_payment`, not an active subscription.
 
 ## Run in Codespaces
 
@@ -20,7 +20,7 @@ The default database is `var/real-life-connect.sqlite` relative to this backend 
 
 Optionally set `SQLITE_PATH` in the server environment to an absolute private file path. The application creates organizations and users on first start, with a versioned schema, foreign keys, unique case-insensitive email addresses, and atomic signup transactions. Passwords use salted scrypt hashes; raw passwords are never stored or returned. Existing in-memory prototype signups cannot be migrated because they were never saved.
 
-Only development signup exists: there is no unauthenticated endpoint to browse user records, password hashes, or database files. Use fictional data. Production hardening (authentication, verification, abuse protection, audit trail and deployment configuration) is still required.
+There is no unauthenticated endpoint to browse user records, password hashes, or database files. Use fictional data. Production readiness still requires email verification, password recovery, broader abuse protection, an audit trail and reviewed deployment configuration.
 
 ## Back up and restore
 
@@ -122,3 +122,20 @@ An optional fourth argument supplies the Iotum company display name, for example
 After provisioning, use `npm run iotum -- test-role JOB_ID HOST` to change that test administrator to Host. The command first verifies its saved company ID, host ID and email, refuses reseller administrator roles, changes only `role`, and fetches again to verify. It changes no subscriptions, passwords or local SQLite administrator role. It is local operator tooling; no public role-change endpoint is added.
 
 Use `npm run iotum -- test-role JOB_ID` for a read-only check. If necessary, the reseller operator can restore that same test account with `npm run iotum -- test-role JOB_ID COMPANY_ADMIN`. Sign out and sign back into the test portal after changing the role. Verify that organization/billing administration is unavailable, while meeting scheduling, starting and joining work. An API role check alone cannot prove the visible UI or authorization behavior. If Iotum rejects removal of the last company administrator, stop and record that result; do not create extra accounts automatically.
+
+
+## Website login and subscriber dashboard
+
+Schema version 6 preserves existing users, password hashes, catalog edits and provisioning IDs. It adds organization memberships, sessions, rate-limit records and shared-room assignments. Existing users receive the same local admin/member role in their current workspace. Provisioned test companies with an explicit display name become named organization workspaces. Ordinary individual signups retain personal workspaces. One person can have several membership rows; the dashboard validates the selected workspace on every request and offers a selector when more than one exists. Membership invitation/editing tools are future work.
+
+Sign In appears in the website header. Use the email and password from the original WEBSITE signup, not a later Iotum password reset. Website password reset is not implemented yet. Unknown local users can use the separate Iotum sign-in link. Pending-payment users may sign in to review setup without obtaining a paid account. Suspended users cannot sign in. Successful operator tests continue to display pending payment locally with a separate provisioned-test label.
+
+Sessions use a random token in an HttpOnly, SameSite=Strict cookie; only its SHA-256 hash is persisted. Sessions expire after eight hours or thirty minutes idle. Signing in rotates the session and signing out invalidates it server-side. Secure cookies are enabled in Codespaces and NODE_ENV=production; production must use HTTPS. Mutations require JSON plus a custom request header and reject cross-site fetch metadata. Login attempts and concurrent password verifications are bounded. Sessions and attempted-login records remain private in SQLite backups.
+
+Dashboard routes are authenticated: `/api/session`, `/api/dashboard` and `/api/workspaces/:id/admin`. Organization admin access is checked server-side against memberships. Returned data includes no password hashes, session tokens, reseller API credentials or wholesale prices. My Meetings links an already provisioned test host to the existing Iotum login and attendee meeting link; it does not provide SSO or fetch live meetings/recordings. Shared Rooms returns only rooms assigned to the signed-in member in the selected workspace. No sample rooms are seeded and no booking/launch is enabled. The admin view lists current organization members and rooms; adding paid users/rooms, subscription changes, assignments and calendar reservations are not yet implemented. Cross-workspace access is denied even if someone supplies another workspace ID directly.
+
+Future operator provisioning now creates and verifies Iotum `HOST` accounts. Local organization administrators keep their SQLite membership role. Existing provider roles are not changed by this update, including the test account you already changed manually. Normal customer activation must eventually use the paid plan selection rather than rely on the operator test's reseller-default option.
+
+After pulling, back up the existing SQLite database with `npm run backup`, restart the backend, and refresh the frontend. No new dependency installation is required. The first updated backend start applies the migration; old sessions do not exist and all users must sign in. Use the existing Iotum test signup to verify a personal meeting link, local organization administrator view and empty assigned-room list.
+
+Security reference: OWASP Session Management and CSRF Prevention Cheat Sheets, https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html and https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html.

@@ -17,7 +17,7 @@ function fakeClient({ failAt, wrongPlan = false } = {}) {
     if (endpoint === '/subscription/fetch_products') return [{ slug: 'reallife_basic', plan: true, id: 7 }];
     if (endpoint === '/company/create') return { id: 101 };
     if (endpoint === '/subscription/fetch') return [{ id: 201, status: 'Active', product: { slug: wrongPlan ? 'wrong' : 'reallife_basic' } }];
-    if (endpoint === '/host/create') return { host_id: 301, company_id: 101, plan_slug: 'reallife_basic', meeting_url: 'https://test.reallife-connect.live/conf/call/123', password_creation_link: 'PRIVATE_LINK', login_token_public_key: 'PRIVATE_KEY' };
+    if (endpoint === '/host/create') return { host_id: 301, company_id: 101, role: 'HOST', plan_slug: 'reallife_basic', meeting_url: 'https://test.reallife-connect.live/conf/call/123', password_creation_link: 'PRIVATE_LINK', login_token_public_key: 'PRIVATE_KEY' };
     throw new Error('Unexpected endpoint');
   } };
 }
@@ -32,7 +32,7 @@ test('prepared test performs no provider writes; completion is repeatable and ke
     assert.equal(store.db.prepare('SELECT status FROM users').get().status, 'pending_payment');
     assert.doesNotMatch(JSON.stringify(completed), /PRIVATE_LINK|PRIVATE_KEY/);
     const host = client.calls.find(c => c.endpoint === '/host/create').payload;
-    assert.deepEqual(host.subscription_ids, [201]); assert.equal(host.no_welcome_email, true);
+    assert.deepEqual(host.subscription_ids, [201]); assert.equal(host.no_welcome_email, true); assert.equal(host.role, 'HOST');
     assert.equal(host.disable_emails.conference_summaries, false); assert.equal(host.auto_record, 'none');
     const count = client.calls.length; await activateTest(store.db, job.id, client); assert.equal(client.calls.length, count);
   } finally { store.close(); }

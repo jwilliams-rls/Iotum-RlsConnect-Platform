@@ -36,11 +36,11 @@ test('version-one databases migrate without changing existing users', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'rlc-migration-'));
   const filename = path.join(dir, 'db.sqlite');
   const db = new DatabaseSync(filename);
-  db.exec("CREATE TABLE organizations(id TEXT PRIMARY KEY, name TEXT, created_at TEXT); CREATE TABLE users(id TEXT PRIMARY KEY, email TEXT); INSERT INTO users VALUES ('existing', 'existing@example.test'); PRAGMA user_version = 1;");
+  db.exec("CREATE TABLE organizations(id TEXT PRIMARY KEY, name TEXT, created_at TEXT); CREATE TABLE users(id TEXT PRIMARY KEY, email TEXT, organization_id TEXT, role TEXT); ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending_payment'; INSERT INTO organizations VALUES ('org', 'Fixture', '2026-01-01'); INSERT INTO users(id,email,organization_id,role) VALUES ('existing', 'existing@example.test', 'org', 'admin'); PRAGMA user_version = 1;");
   db.close();
   const store = openStore(filename);
   try {
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 6);
     assert.equal(store.db.prepare('SELECT email FROM users').get().email, 'existing@example.test');
     assert.equal(readCatalog(store.db).revision, 1);
     for (const mutate of [c => c.plans[0].priceCents = -1, c => c.usageRates[0].priceMicroUsd = 0.5, c => c.features[0][1] = 999]) {
@@ -76,7 +76,7 @@ test('version-two camera correction preserves retail edits and catalog history',
     envelope.catalog.plans[0].priceCents = 999;
     envelope.catalog.features.find(row => row[0] === 'Share second camera')[1] = null;
     saveCatalog(store.db, envelope);
-    store.db.exec('DROP TABLE iotum_provisioning; PRAGMA user_version = 2');
+    store.db.exec('DROP TABLE room_assignments; DROP TABLE rooms; DROP TABLE login_attempts; DROP TABLE sessions; DROP TABLE memberships; ALTER TABLE organizations DROP COLUMN kind; DROP TABLE iotum_provisioning; PRAGMA user_version = 2');
     store.close(); store = openStore(filename);
     const corrected = readCatalog(store.db);
     assert.equal(corrected.revision, 3);
@@ -99,7 +99,7 @@ test('version-three migration excludes all Basic features below audio recording'
     envelope.catalog.features.find(row => row[0] === 'Video recording')[1] = true;
     const otherColumns = envelope.catalog.features.map(row => row.slice(2));
     saveCatalog(store.db, envelope);
-    store.db.exec('DROP TABLE iotum_provisioning; PRAGMA user_version = 3');
+    store.db.exec('DROP TABLE room_assignments; DROP TABLE rooms; DROP TABLE login_attempts; DROP TABLE sessions; DROP TABLE memberships; ALTER TABLE organizations DROP COLUMN kind; DROP TABLE iotum_provisioning; PRAGMA user_version = 3');
     store.close(); store = openStore(filename);
     const corrected = readCatalog(store.db);
     assert.equal(corrected.catalog.plans[0].priceCents, 999);

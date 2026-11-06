@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 5) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 6) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -94,6 +94,45 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
       PRAGMA user_version = 5;
       COMMIT;`);
   }
+  if (version < 6) {
+    db.exec(`BEGIN IMMEDIATE;
+      ALTER TABLE organizations ADD COLUMN kind TEXT NOT NULL DEFAULT 'organization' CHECK(kind IN ('personal','organization'));
+      UPDATE organizations SET kind = 'personal' WHERE name = 'Individual account';
+      UPDATE organizations SET
+        name = (SELECT json_extract(p.draft, '$.companyName') FROM iotum_provisioning p WHERE p.organization_id = organizations.id AND p.state = 'ready_test'),
+        kind = 'organization'
+        WHERE kind = 'personal' AND id IN (SELECT organization_id FROM iotum_provisioning WHERE state = 'ready_test' AND json_extract(draft, '$.companyName') != 'Individual account');
+      CREATE TABLE memberships (
+        user_id TEXT NOT NULL REFERENCES users(id),
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        role TEXT NOT NULL CHECK(role IN ('admin','member')),
+        PRIMARY KEY(user_id, organization_id)
+      ) STRICT;
+      INSERT INTO memberships SELECT id, organization_id, role FROM users;
+      CREATE TABLE sessions (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        created_at INTEGER NOT NULL,
+        last_seen INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE TABLE login_attempts (email_hash TEXT NOT NULL, attempted_at INTEGER NOT NULL) STRICT;
+      CREATE INDEX login_attempts_email ON login_attempts(email_hash);
+      CREATE TABLE rooms (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        name TEXT NOT NULL,
+        plan TEXT NOT NULL CHECK(plan IN ('plus','pro')),
+        status TEXT NOT NULL CHECK(status IN ('pending','active','suspended'))
+      ) STRICT;
+      CREATE TABLE room_assignments (
+        room_id TEXT NOT NULL REFERENCES rooms(id),
+        user_id TEXT NOT NULL REFERENCES users(id),
+        PRIMARY KEY(room_id, user_id)
+      ) STRICT;
+      PRAGMA user_version = 6;
+      COMMIT;`);
+  }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -103,10 +142,11 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
         throw error;
       }
       const orgId = randomUUID(), userId = randomUUID(), now = new Date().toISOString();
-      db.prepare("INSERT INTO organizations (id, name, created_at) VALUES (?, ?, ?)").run(orgId, orgName, now);
+      db.prepare("INSERT INTO organizations (id, name, created_at, kind) VALUES (?, ?, ?, ?)").run(orgId, orgName, now, orgName === "Individual account" ? "personal" : "organization");
       db.prepare(`INSERT INTO users
         (id, organization_id, name, email, password_hash, role, created_at)
         VALUES (?, ?, ?, ?, ?, 'admin', ?)`).run(userId, orgId, adminName, adminEmail, passwordHash, now);
+      db.prepare("INSERT INTO memberships VALUES (?, ?, 'admin')").run(userId, orgId);
       db.exec("COMMIT");
       return { orgId, userId };
     } catch (error) {

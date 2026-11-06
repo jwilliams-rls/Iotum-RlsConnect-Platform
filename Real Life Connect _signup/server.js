@@ -12,6 +12,7 @@ function createApp(store) {
     res.set("Cache-Control", "no-store");
     res.json(require("./catalog").publicCatalog(store.db));
   });
+  require("./auth").installAccountRoutes(app, store);
   let hashing = 0;
   app.post("/api/signup", async (req, res) => {
     const body = req.body;

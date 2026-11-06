@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import SignupForm from "./SignupForm";
+import { AccountMenu, SignIn, Dashboard, accountRequest } from "./Account";
 import { plans, features, monthlyCents, money, isOrganizationPackageValid, usersPerSharedRoom, organizationUserCents } from "./pricing";
 import "./pricing.css";
 import { Home, Meetings, Webinars, SharedRoomStory } from "./Marketing";
 
-const pages = { home: "Home", meetings: "Meetings", webinars: "Webinars", features: "Features", rooms: "Shared Rooms", pricing: "Plans & Pricing", signup: "Signup" };
+const pages = { home: "Home", meetings: "Meetings", webinars: "Webinars", features: "Features", rooms: "Shared Rooms", pricing: "Plans & Pricing", signup: "Signup", signin: "Sign In", account: "My Dashboard" };
 const logo = `${import.meta.env.BASE_URL}real-life-connect-logo.png`;
 function readPage() {
   const key = window.location.hash.slice(1).split("?")[0];
@@ -40,6 +41,14 @@ function Intro({ eyebrow, title, children }) {
 }
 export default function App() {
   const [page, setPage] = useState(readPage);
+  const [user, setUser] = useState(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const signedOut = useCallback(() => setUser(null), []);
+  useEffect(() => {
+    let live = true;
+    accountRequest("/api/session").then(data => { if(live) setUser(data.user); }).catch(() => {}).finally(() => { if(live) setCheckingSession(false); });
+    return () => {live=false;};
+  }, []);
   const [kind, setKind] = useState(() => window.location.hash.includes("?organization") ? "organization" : "individual");
   const [individualPlan, setIndividualPlan] = useState("basic");
   const [users, setUsers] = useState(5);
@@ -83,10 +92,12 @@ export default function App() {
     <a href="#main-content" className="rlc-skip" onClick={e => { e.preventDefault(); document.getElementById("main-content").focus(); }}>Skip to content</a>
     <header className="rlc-header">
       <a href="#home" className="rlc-brand"><img className="rlc-logo" src={logo} alt="Real Life Connect home" width="2048" height="1026" /></a>
-      <nav aria-label="Main navigation">{["meetings", "rooms", "webinars", "features", "pricing"].map(key => <a key={key} href={"#" + key} aria-current={page === key ? "page" : undefined}>{key === "rooms" ? "Shared rooms" : key === "pricing" ? "Pricing" : pages[key]}</a>)}<a className="mc-nav-cta" href="#pricing">Find your plan <span aria-hidden="true">↗</span></a></nav>
+      <nav aria-label="Main navigation">{["meetings", "rooms", "webinars", "features", "pricing"].map(key => <a key={key} href={"#" + key} aria-current={page === key ? "page" : undefined}>{key === "rooms" ? "Shared rooms" : key === "pricing" ? "Pricing" : pages[key]}</a>)}<AccountMenu user={user} onSignedOut={signedOut}/><a className="mc-nav-cta" href="#pricing">Find your plan <span aria-hidden="true">↗</span></a></nav>
     </header>
     <div className="rlc-preview-note">Website preview · Checkout and new service activation are not yet enabled.</div>
     <main id="main-content" tabIndex={-1}>
+      {page === "signin" && (user ? <Dashboard onSignedOut={signedOut}/> : <SignIn onSignedIn={setUser}/>)}
+      {page === "account" && (checkingSession ? <p role="status">Checking your session…</p> : user ? <Dashboard onSignedOut={signedOut}/> : <SignIn onSignedIn={setUser}/>)}
       {page === "home" && <Home />}
       {page === "meetings" && <Meetings><Comparison /></Meetings>}
       {page === "webinars" && <Webinars />}
