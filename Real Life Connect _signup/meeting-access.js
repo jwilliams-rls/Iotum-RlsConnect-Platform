@@ -1,7 +1,6 @@
 const { randomBytes, createHash } = require('node:crypto');
 const { createIotumClient } = require('./iotum-client');
 const digest = value => createHash('sha256').update(value).digest('hex');
-const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function installMeetingAccess(app, store, { signedIn, workspace, protectedMutation }, clientFactory = createIotumClient) {
   const db = store.db;
   const unavailable = 'Meeting access is temporarily unavailable. Please return to your dashboard and try again.';
@@ -42,11 +41,15 @@ function installMeetingAccess(app, store, { signedIn, workspace, protectedMutati
       const validSession = db.prepare(`SELECT s.user_id FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND s.last_seen > ? AND u.status != 'suspended'`).get(req.account.token_hash, Date.now(), Date.now() - 30 * 60 * 1000);
       const current = ownedJob(handoff.provisioning_id, req.account.user_id, handoff.organization_id);
       if (!validSession || validSession.user_id !== req.account.user_id || current?.host_id !== job.host_id || current.company_id !== job.company_id) throw new Error('Account access changed');
-      const nonce = randomBytes(24).toString('base64');
-      res.set('Content-Security-Policy', `default-src 'none'; script-src 'nonce-${nonce}'; form-action ${origin}; base-uri 'none'; frame-ancestors 'none'`);
-      // The documented /auth flow is completed by the browser. Only this host's credential
-      // appears in this no-store form POST, never a reseller token or a credential URL.
-      return res.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Real Life Connect — Opening Meetings</title></head><body><h1>Opening your meetings…</h1><form id="meeting-sign-in" method="post" action="${escapeHtml(origin)}/auth"><input type="hidden" name="host_id" value="${job.host_id}"><input type="hidden" name="login_token_public_key" value="${escapeHtml(host.login_token_public_key)}"><input type="hidden" name="redirect_url" value="/conf/meetings/upcoming"><noscript><button type="submit">Continue to My Meetings</button></noscript></form><script nonce="${nonce}">document.getElementById('meeting-sign-in').submit();</script></body></html>`);
+      const signIn = new URL('/auth', origin);
+      signIn.searchParams.set('host_id', String(job.host_id));
+      signIn.searchParams.set('login_token_public_key', host.login_token_public_key);
+      signIn.searchParams.set('redirect_url', '/conf/meetings/upcoming');
+      // The provider documents browser GET sign-on. Its host credential is briefly
+      // in the provider URL; never log this URL or persist it in our database.
+      res.set('Content-Security-Policy', "default-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+      // An empty response avoids echoing the sensitive Location into an HTML body.
+      return res.status(303).set('Location', signIn.href).end();
     } catch {
       // Do not print provider responses or error strings: they may contain sign-on credentials.
       console.error('Meeting sign-on could not be completed.');

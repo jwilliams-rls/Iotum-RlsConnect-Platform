@@ -5,7 +5,7 @@ const { createApp } = require('../server');
 const { hashPassword } = require('../passwords');
 const { prepareTest } = require('../iotum-provision');
 
-test('meeting handoff is owned, session-bound, single-use, POST-based and has no credential URL', async () => {
+test('meeting handoff is owned, session-bound, single-use and redirects to the documented host sign-on URL', async () => {
   const store = openStore(':memory:');
   const password = 'Website-secret-example-123';
   const passwordHash = await hashPassword(password);
@@ -23,7 +23,7 @@ test('meeting handoff is owned, session-bound, single-use, POST-based and has no
   await new Promise(resolve=>server.once('listening',resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const post = (path, body, cookie, headers={}) => fetch(base+path, { method:'POST', headers: { 'Content-Type':'application/json', 'X-RLC-Request':'1', ...(cookie?{Cookie:cookie}:{}), ...headers }, body:JSON.stringify(body) });
-  const get = (path,cookie) => fetch(base+path,{headers:cookie?{Cookie:cookie}:{}});
+  const get = (path,cookie) => fetch(base+path,{redirect:'manual',headers:cookie?{Cookie:cookie}:{}});
   async function login(email) { const res=await post('/api/login',{email,password}); assert.equal(res.status,200);return res.headers.get('set-cookie').split(';')[0]; }
   const issue = cookie => post(`/api/workspaces/${own.orgId}/meeting-access`,{},cookie);
   try {
@@ -41,15 +41,19 @@ test('meeting handoff is owned, session-bound, single-use, POST-based and has no
     const secondOwnerCookie=await login('owner@example.test');
     assert.equal((await get(launch.launchUrl,secondOwnerCookie)).status,410);
     const response=await get(launch.launchUrl,ownerCookie);
-    assert.equal(response.status,200); assert.equal(response.headers.get('cache-control'),'no-store');
+    assert.equal(response.status,303); assert.equal(response.headers.get('cache-control'),'no-store');
     assert.equal(response.headers.get('referrer-policy'),'no-referrer');
-    assert.match(response.headers.get('content-security-policy'),/form-action https:\/\/sso-test.reallife-connect.live/);
-    const html=await response.text();
-    assert.match(html,/method="post" action="https:\/\/sso-test.reallife-connect.live\/auth"/);
-    assert.match(html,/name="host_id" value="201"/);
-    assert.match(html,/HOST_SECRET&lt;&amp;&quot;/);
-    assert.match(html,/name="redirect_url" value="\/conf\/meetings\/upcoming"/);
-    assert.doesNotMatch(html,/auth\?host_id|example.test|RESELLER_SECRET/);
+    const destination = new URL(response.headers.get('location'));
+    assert.equal(destination.origin, 'https://sso-test.reallife-connect.live');
+    assert.equal(destination.pathname, '/auth');
+    assert.equal(destination.searchParams.get('host_id'), '201');
+    assert.equal(destination.searchParams.get('login_token_public_key'), credential);
+    assert.equal(destination.searchParams.get('redirect_url'), '/conf/meetings/upcoming');
+    assert.deepEqual([...destination.searchParams.keys()].sort(), ['host_id','login_token_public_key','redirect_url']);
+    assert.equal(destination.username, ''); assert.equal(destination.password, '');
+    assert.equal(destination.hash, '');
+    assert.equal(await response.text(), '');
+    assert.doesNotMatch(destination.href, /example.test|RESELLER_SECRET/);
     assert.equal((await get(launch.launchUrl,ownerCookie)).status,410); assert.equal(fetches,1);
     const expired=await (await issue(ownerCookie)).json();
     store.db.prepare('UPDATE meeting_handoffs SET expires_at = 0').run();
