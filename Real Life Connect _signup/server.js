@@ -2,7 +2,7 @@ const express = require("express");
 const { openStore } = require("./db");
 const { hashPassword } = require("./passwords");
 
-function createApp(store) {
+function createApp(store, options = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "16kb" }));
@@ -12,7 +12,7 @@ function createApp(store) {
     res.set("Cache-Control", "no-store");
     res.json(require("./catalog").publicCatalog(store.db));
   });
-  require("./auth").installAccountRoutes(app, store);
+  require("./auth").installAccountRoutes(app, store, options);
   let hashing = 0;
   app.post("/api/signup", async (req, res) => {
     const body = req.body;

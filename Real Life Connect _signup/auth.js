@@ -4,7 +4,7 @@ const { getTest } = require('./iotum-provision');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const COOKIE = 'rlc_session';
 const idle = 30 * 60 * 1000, lifetime = 8 * 60 * 60 * 1000;
-function installAccountRoutes(app, store) {
+function installAccountRoutes(app, store, options = {}) {
   const db = store.db;
   let verifying = 0, dummy;
   const secure = process.env.NODE_ENV === 'production' || process.env.CODESPACES === 'true';
@@ -65,6 +65,7 @@ function installAccountRoutes(app, store) {
     if (!member) return res.status(403).send('You do not have access to this workspace.');
     req.workspace = member; req.workspaces = all; next();
   }
+  require('./meeting-access').installMeetingAccess(app, store, { signedIn, workspace, protectedMutation }, options.iotumClientFactory);
   app.get('/api/dashboard', signedIn, workspace, (req, res) => {
     const a = req.account, w = req.workspace;
     const provision = db.prepare(`SELECT id FROM iotum_provisioning WHERE user_id = ? AND organization_id = ? AND state = 'ready_test'`).get(a.user_id, w.id);

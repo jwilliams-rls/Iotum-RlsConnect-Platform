@@ -37,7 +37,7 @@ function display(job) {
     } else if (command === 'activate' && args[0]) {
       display(await activateTest(store.db, args[0], createIotumClient()));
       console.log(`Test host is provisioned. Sign into the Iotum portal at ${DEFAULT_ORIGIN} using the host email; use its password-reset flow to establish the separate Iotum password.`);
-      console.log('The meeting URL is an attendee link, not an authenticated host login. Our website SSO is not connected yet.');
+      console.log('The meeting URL is an attendee link, not an authenticated host login. Use Open My Meetings after signing into the Real Life Connect website for host-specific access.');
     } else throw new Error('Commands: check | signups | prepare EMAIL PRODUCT_ID SUBDOMAIN [COMPANY_NAME] | status JOB_ID | activate JOB_ID | test-role JOB_ID [HOST|COMPANY_ADMIN]');
   } finally { store.close(); }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

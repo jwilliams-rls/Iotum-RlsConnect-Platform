@@ -63,7 +63,7 @@ test('existing provisioned test signup survives migration and receives its local
     const signup = store.createSignup({ orgName: 'Individual account', adminName: 'Test Admin', adminEmail: 'migration@example.test', passwordHash: 'preserved-hash' });
     const job = prepareTest(store.db, { email: 'migration@example.test', productId: null, subdomain: 'migration-test', companyName: 'Real Life Connect Test' });
     store.db.prepare("UPDATE iotum_provisioning SET state = 'ready_test', company_id = 100, host_id = 200, meeting_url = 'https://migration-test.reallife-connect.live/conf/call/123' WHERE id = ?").run(job.id);
-    store.db.exec('DROP TABLE room_assignments; DROP TABLE rooms; DROP TABLE login_attempts; DROP TABLE sessions; DROP TABLE memberships; ALTER TABLE organizations DROP COLUMN kind; PRAGMA user_version = 5;');
+    store.db.exec('DROP TABLE meeting_handoffs; DROP TABLE room_assignments; DROP TABLE rooms; DROP TABLE login_attempts; DROP TABLE sessions; DROP TABLE memberships; ALTER TABLE organizations DROP COLUMN kind; PRAGMA user_version = 5;');
     store.close(); store = openStore(file);
     assert.equal(store.db.prepare('SELECT password_hash FROM users').get().password_hash, 'preserved-hash');
     assert.deepEqual({ ...store.db.prepare('SELECT name, kind FROM organizations').get() }, { name: 'Real Life Connect Test', kind: 'organization' });

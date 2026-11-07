@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 6) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 7) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -131,6 +131,21 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
         PRIMARY KEY(room_id, user_id)
       ) STRICT;
       PRAGMA user_version = 6;
+      COMMIT;`);
+  }
+  if (version < 7) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE meeting_handoffs (
+        ticket_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        session_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
+        provisioning_id TEXT NOT NULL REFERENCES iotum_provisioning(id),
+        expires_at INTEGER NOT NULL,
+        used_at INTEGER
+      ) STRICT;
+      CREATE INDEX meeting_handoffs_user ON meeting_handoffs(user_id);
+      PRAGMA user_version = 7;
       COMMIT;`);
   }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {
