@@ -133,3 +133,11 @@ The upcoming-meetings table has an Edit meeting action for the host’s own futu
 The host upcoming table has explicit row and column grid lines, a shaded header and alternating row backgrounds. All cells, including the meeting-name row header, align at the top so each reservation reads across one row. Details, Edit, Calendar and Cancel are compact horizontal buttons with descriptive accessible names. Fixed column proportions and horizontal overflow preserve alignment on narrower screens. Verified visually with sample meetings and a successful production build. Frontend only; no backend restart is needed for this adjustment.
 
 Meeting-row actions now use navy SVG icons: eye (details), pencil (edit), calendar (view calendar), and calendar with an X (cancel reservation). Each 40px button retains its descriptive accessible name and a hover title. The cancellation confirmation remains unchanged. Narrower action-column proportions give more space to meeting details. Verified with room-flow checks, production build and a browser preview. Frontend-only update.
+
+## Application list and action standard
+
+All signed-in application data tables now share application-ui.css through app-data-table: visible column/row borders, shaded headers, alternating rows, navy text and top-aligned cells. This is applied to upcoming meetings, room selection/administration and organization Members. Tables retain horizontal overflow on small screens. Name cells are row headers and column headings identify each field.
+
+Use RowAction from ApplicationUI.jsx for compact row actions, with a familiar ActionIcon, descriptive accessible label, hover title and visible keyboard focus. Existing meeting/room icons now share that component. Keep task-level Save, Cancel, Add and navigation buttons labeled with text. Do not add nonfunctional row actions just for appearance. New signed-in list screens should use these same styles and components. Public marketing plan comparisons keep their separate presentation.
+
+Verified with the room-flow and workspace navigation checks, production build, and browser review of organization room and member tables using sample data. Frontend-only; no backend restart required.
