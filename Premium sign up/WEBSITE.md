@@ -141,3 +141,5 @@ All signed-in application data tables now share application-ui.css through app-d
 Use RowAction from ApplicationUI.jsx for compact row actions, with a familiar ActionIcon, descriptive accessible label, hover title and visible keyboard focus. Existing meeting/room icons now share that component. Keep task-level Save, Cancel, Add and navigation buttons labeled with text. Do not add nonfunctional row actions just for appearance. New signed-in list screens should use these same styles and components. Public marketing plan comparisons keep their separate presentation.
 
 Verified with the room-flow and workspace navigation checks, production build, and browser review of organization room and member tables using sample data. Frontend-only; no backend restart required.
+
+Calendar headers now show “[Room name] Calendar” first. Upcoming meetings and Back to shared rooms navigation buttons appear beneath the title, with calendar task actions alongside them when space allows. The row wraps on narrower screens. Room-flow checks, production build and browser layout review passed. Frontend-only update.
