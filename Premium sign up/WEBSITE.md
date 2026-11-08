@@ -111,3 +111,13 @@ Requested November 8, 2026. Revisit after the Host Admin Shared Rooms workflow. 
 - Investigate whether Cue supports agenda-guided analysis through available APIs; otherwise assess a separate application integration. Do not assume existing provider support.
 
 Keep this out of the immediate upcoming shared-room meetings table implementation. Participant access, editing permissions and document storage remain to be designed.
+
+## Host shared-room upcoming meetings
+
+Host Admin → Shared Rooms now opens My upcoming room meetings, a table containing only the signed-in host’s unended, uncancelled reservations in assigned, nonsuspended Pro rooms. Meetings are ordered by start time across all assigned rooms, with current room-specific YouTube/live-streaming approvals shown as permissions, not as active broadcast indicators. A reserved time already underway is labeled Reserved time in progress, not Live. Organization administrators using this host screen also see only their own reservations.
+
+Reserve a room opens the assigned-room table and calendars. A meeting-row Calendar action opens that reservation’s date. After saving, Close returns to the upcoming list; Create another reservation stays in the calendar workflow. Local screen transitions reset the workspace scroll position while retaining the sidebar. View details opens a task dialog. Cancel asks for confirmation, Keep reservation makes no changes, and failed cancellation leaves the reservation and dialog available for retry. Successful cancellation refreshes the list.
+
+Start meeting, Add documents and Add participants are visibly unavailable in meeting details until their integrations are implemented. Recurrence and agenda editing remain future work. All bookings are local test reservations.
+
+Backend route GET /api/workspaces/:id/room-meetings requires an authenticated workspace membership and returns only the requesting eligible Basic/Plus host’s own reservations, with current approvals. It spans future dates rather than just the visible calendar week. This update requires a backend restart, with no database schema change. Validation: all 28 backend tests, room-flow and workspace DOM checks, production build, and browser review with sample meetings.

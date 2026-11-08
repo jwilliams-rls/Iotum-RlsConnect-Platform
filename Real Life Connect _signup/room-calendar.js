@@ -23,6 +23,24 @@ function installRoomCalendar(app, store, { signedIn, workspace, protectedMutatio
     req.room = room; req.roomAdmin = isAdmin; next();
   }
   const read = [signedIn, workspace], write = [protectedMutation, signedIn, workspace];
+  app.get('/api/workspaces/:id/room-meetings', ...read, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!eligible(req.account.user_id)) return res.json({ meetings: [], mode: 'local_test' });
+    const now = Date.now();
+    const meetings = db.prepare(`SELECT b.id, b.title, b.room_id, r.name room_name, b.starts_at, b.ends_at
+      FROM room_reservations b
+      JOIN rooms r ON r.id = b.room_id
+      JOIN room_assignments a ON a.room_id = r.id AND a.user_id = b.user_id
+      WHERE r.organization_id = ? AND b.user_id = ? AND r.plan = 'pro' AND r.status != 'suspended'
+        AND b.cancelled_at IS NULL AND b.ends_at > ?
+      ORDER BY b.starts_at, b.id LIMIT 100`).all(req.workspace.id, req.account.user_id, now).map(b => ({
+        id: b.id, title: b.title, roomId: b.room_id, roomName: b.room_name,
+        startsAt: new Date(b.starts_at).toISOString(), endsAt: new Date(b.ends_at).toISOString(),
+        status: b.starts_at <= now ? 'in_progress_reservation' : 'upcoming',
+        permissions: permissions(b.room_id, req.account.user_id), canCancel: true
+      }));
+    res.json({ meetings, mode: 'local_test' });
+  });
   app.get(base, ...read, (req, res) => {
     const isAdmin = req.workspace.kind === 'organization' && req.workspace.role === 'admin';
     const rooms = db.prepare(`SELECT r.id, r.name, r.status, s.max_minutes, s.mode FROM rooms r JOIN room_calendar_settings s ON s.room_id = r.id WHERE r.organization_id = ? AND r.plan = 'pro' AND r.status != 'suspended' ORDER BY r.name`).all(req.workspace.id)
