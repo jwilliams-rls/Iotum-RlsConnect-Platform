@@ -100,3 +100,14 @@ Host Admin → Shared Rooms shows only rooms assigned to the current eligible ho
 Under Organization Admin → Shared room settings → Users, every assigned user has separate Allow live streaming and Allow YouTube streaming checkboxes. Both default to off independently of the user’s personal plan. Save room users persists approvals together with the room assignments; Cancel discards edits. Removing and re-adding a user resets approvals. Preferences preserve the existing values. Host Admin has no approval-editing controls. Backend schema 10 and a restart are required.
 
 These controls store local policy for shared rooms. Live streaming and provider-side enforcement remain unconnected; saving approvals does not activate broadcasting or change personal subscription features.
+
+## Deferred: meeting agendas and agenda-guided analysis
+
+Requested November 8, 2026. Revisit after the Host Admin Shared Rooms workflow. This is a future exploration, not an implemented meeting feature.
+
+- Allow agendas and other review documents to be attached while scheduling a meeting.
+- Provide a structured agenda editor, with a dedicated Agenda menu selection where participants can read the agenda directly in the application rather than opening a document.
+- Use agenda topics as a meeting guide and explore relating transcript content, responses, summaries, covered/uncovered topics and follow-up items to those topics.
+- Investigate whether Cue supports agenda-guided analysis through available APIs; otherwise assess a separate application integration. Do not assume existing provider support.
+
+Keep this out of the immediate upcoming shared-room meetings table implementation. Participant access, editing permissions and document storage remain to be designed.
