@@ -83,7 +83,7 @@ Validation: local DOM checks pass for sidebar routing, active sections, content 
 
 ## Shared room table and task dialogs
 
-Shared Rooms uses a labeled table with room name, plan and maximum reservation duration. Administrators also see Users (people icon only), Calendar and Preferences (pencil icon). The people action opens a focused user-assignment dialog showing the assigned count out of ten. Check or uncheck linked Basic or Plus members in that dialog, then save to add or remove their room assignments; the pencil edits the room name and duration while preserving assignments. Member views retain calendar access without administrator actions.
+Shared Rooms uses a labeled table with room name, plan and maximum reservation duration. Administrators also see Users (people icon only), Calendar and Preferences (pencil icon). The people action opens a focused user-assignment dialog showing the assigned count out of ten. Use Add existing user to select an unassigned linked Basic or Plus member of the same organization, or Remove beside an assigned member. Save room users commits these changes; Cancel discards them. Duplicate assignments and additions beyond ten are prevented; the pencil edits the room name and duration while preserving assignments. Member views retain calendar access without administrator actions.
 
 Add shared room is positioned above the table on the left. Its popup has Submit and Cancel. A successful submission closes the popup, refreshes the canonical room list and displays confirmation; failed submissions preserve the form and allow retry. Creation remains a local Pro test calendar and does not purchase or activate a subscription.
 
