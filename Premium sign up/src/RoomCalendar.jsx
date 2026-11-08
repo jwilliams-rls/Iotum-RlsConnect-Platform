@@ -89,9 +89,9 @@ function Calendar({room,request,base,onBack,onPreferences,canManage}) {
   useEffect(()=>{
     let live=true;setError('');setLoading(true);
     const from=atMidnight(first),to=addDays(from,7);
-    request(endpoint+'?'+new URLSearchParams({from:from.toISOString(),to:to.toISOString()})).then(d=>{if(live)setRows(d.reservations);}).catch(e=>{if(live){setError(e.message);setRows([]);}}).finally(()=>{if(live)setLoading(false);});
+    request(endpoint+'?'+new URLSearchParams({from:from.toISOString(),to:to.toISOString()})).then(d=>{if(live)setRows(d.reservations.map(r=>canManage?r:{...r,title:r.mine?r.title:'Reserved',canCancel:r.mine&&r.canCancel}));}).catch(e=>{if(live){setError(e.message);setRows([]);}}).finally(()=>{if(live)setLoading(false);});
     return()=>{live=false;};
-  },[endpoint,first,revision,request]);
+  },[endpoint,first,revision,request,canManage]);
   async function cancel(id){
     setCancelling(true);setError('');setMessage('');
     try{await request(endpoint+'/'+encodeURIComponent(id),{method:'DELETE',body:'{}'});setMessage('Test reservation cancelled.');setRevision(n=>n+1);}
@@ -117,9 +117,9 @@ export default function RoomCalendar({workspaceId,request,administration=false,c
   const base='/api/workspaces/'+encodeURIComponent(workspaceId)+'/room-calendars';
   useEffect(()=>{
     let live=true;setError('');setRefreshing(true);
-    request(base).then(d=>{if(live)setData(d);}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setRefreshing(false);});
+    request(base).then(d=>{if(live)setData(canManage?d:{...d,rooms:d.rooms.filter(r=>r.canReserve),members:undefined});}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setRefreshing(false);});
     return()=>{live=false;};
-  },[base,revision,request]);
+  },[base,revision,request,canManage]);
   useEffect(()=>{if(view==='rooms')heading.current?.focus({preventScroll:true});},[view]);
   const room=data?.rooms.find(r=>r.id===selected);
   const refresh=()=>setRevision(n=>n+1);

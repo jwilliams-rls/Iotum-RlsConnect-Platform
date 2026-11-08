@@ -88,3 +88,9 @@ Shared Rooms uses a labeled table with room name, plan and maximum reservation d
 Add shared room is positioned above the table on the left. Its popup has Submit and Cancel. A successful submission closes the popup, refreshes the canonical room list and displays confirmation; failed submissions preserve the form and allow retry. Creation remains a local Pro test calendar and does not purchase or activate a subscription.
 
 Validation: production build; DOM flow checks for assignment persistence, separate user/preferences dialogs, member boundaries, room creation success/failure/cancel, calendar navigation and reservation completion; browser review of the table and popup using sample data.
+
+## Host and organization navigation
+
+The sidebar keeps two expanded groups: Host Admin (My Meetings, Shared Rooms, My Account), and Organization Admin for authorized administrators (Members, Shared room settings). All links are indented and visible without opening a parent section.
+
+Host Admin → Shared Rooms shows only rooms assigned to the current eligible host, including when that host is also an organization administrator. It presents calendars and reservation tasks, without room creation, user assignment or preference controls. Other users’ reservations display as Reserved and cannot be cancelled from the host view. Organization Admin → Shared room settings retains the room-management actions. Live shared-room meeting launch remains unconnected.
