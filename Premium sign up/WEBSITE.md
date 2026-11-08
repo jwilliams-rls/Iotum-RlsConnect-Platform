@@ -94,3 +94,9 @@ Validation: production build; DOM flow checks for assignment persistence, separa
 The sidebar keeps two expanded groups: Host Admin (My Meetings, Shared Rooms, My Account), and Organization Admin for authorized administrators (Members, Shared room settings). All links are indented and visible without opening a parent section.
 
 Host Admin → Shared Rooms shows only rooms assigned to the current eligible host, including when that host is also an organization administrator. It presents calendars and reservation tasks, without room creation, user assignment or preference controls. Other users’ reservations display as Reserved and cannot be cancelled from the host view. Organization Admin → Shared room settings retains the room-management actions. Live shared-room meeting launch remains unconnected.
+
+## Per-user shared-room feature approvals
+
+Under Organization Admin → Shared room settings → Users, every assigned user has separate Allow live streaming and Allow YouTube streaming checkboxes. Both default to off independently of the user’s personal plan. Save room users persists approvals together with the room assignments; Cancel discards edits. Removing and re-adding a user resets approvals. Preferences preserve the existing values. Host Admin has no approval-editing controls. Backend schema 10 and a restart are required.
+
+These controls store local policy for shared rooms. Live streaming and provider-side enforcement remain unconnected; saving approvals does not activate broadcasting or change personal subscription features.

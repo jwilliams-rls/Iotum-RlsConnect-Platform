@@ -4,3 +4,5 @@
 
 
 .rc-assigned-user{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #e1e5ee}.rc-assigned-user span{min-width:0;overflow-wrap:anywhere}.rc-assigned-user small{display:block;margin-top:4px}.rc-add-user{margin-top:16px}.rc-add-user label{display:grid;gap:8px}.rc-add-user select{width:100%;max-width:100%;padding:10px;color:#000080;background:white;border:1px solid #cbd2df;border-radius:6px}
+
+.rc-assigned-member{padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid #e1e5ee}.rc-feature-permissions{margin-top:12px;padding:12px!important;border:1px solid #dce2ef!important}.rc-feature-permissions legend{font-size:12px}.rc-feature-permissions label{display:flex;align-items:center;gap:10px;margin:10px 0}.rc-feature-permissions input[type=checkbox]{width:18px;height:18px;flex-shrink:0;accent-color:#000080}

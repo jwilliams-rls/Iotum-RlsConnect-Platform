@@ -41,6 +41,27 @@ test('Pro calendars enforce assignment, ten-user capacity, time limits, privacy,
     assert.equal((await save([owner.userId,plus.userId])).status,200);
     assert.equal((await save([owner.userId,plus.userId],600)).status,400);
     const list=await (await call(api,'GET',undefined,b)).json();assert.equal(list.rooms.length,1);assert.equal(list.rooms[0].canReserve,true);assert.equal(list.members,undefined);assert.equal(list.rooms[0].assignedUserIds,undefined);
+    // Shared-room broadcasting is an explicit approval, never inherited from Plus.
+    assert.deepEqual(list.rooms[0].permissions,{liveStreaming:false,youtubeStreaming:false});
+    const flags=[{userId:owner.userId,liveStreaming:true,youtubeStreaming:false},{userId:plus.userId,liveStreaming:false,youtubeStreaming:true}];
+    const settings={name:'Pro test',maxMinutes:60,assignedUserIds:[owner.userId,plus.userId],assignedUserPermissions:flags};
+    assert.equal((await call(path,'PUT',settings,b)).status,403);
+    assert.equal((await call(path,'PUT',settings,c)).status,403);
+    assert.equal((await call(path,'PUT',{...settings,assignedUserPermissions:[{...flags[0],liveStreaming:'true'},flags[1]]},a)).status,400);
+    assert.equal((await call(path,'PUT',{...settings,assignedUserPermissions:[flags[0],{...flags[1],userId:stranger.userId}]},a)).status,400);
+    assert.equal((await call(path,'PUT',{...settings,assignedUserPermissions:[flags[0],flags[0]]},a)).status,400);
+    assert.equal((await call(path,'PUT',{...settings,assignedUserPermissions:[]},a)).status,400);
+    assert.equal((await call(path,'PUT',settings,a)).status,200);
+    const approved=await (await call(api,'GET',undefined,b)).json();
+    assert.deepEqual(approved.rooms[0].permissions,{liveStreaming:false,youtubeStreaming:true});
+    assert.equal(approved.rooms[0].assignedUserPermissions,undefined);
+    assert.equal((await save([owner.userId,plus.userId])).status,200); // Preferences/older clients preserve approvals.
+    const adminList=await (await call(api,'GET',undefined,a)).json();
+    assert.deepEqual(adminList.rooms[0].assignedUserPermissions.find(p=>p.userId===plus.userId),flags[1]);
+    // Removing and re-adding a user must not restore the previous approval.
+    assert.equal((await save([owner.userId])).status,200);
+    assert.equal((await save([owner.userId,plus.userId])).status,200);
+    assert.deepEqual((await (await call(api,'GET',undefined,b)).json()).rooms[0].permissions,{liveStreaming:false,youtubeStreaming:false});
     const day=Date.now()+86400000, start=new Date(day).toISOString(), end=new Date(day+3600000).toISOString();
     const booking=(title,startsAt=start,durationMinutes=60,cookie=a)=>call(path+'/reservations','POST',{title,startsAt,durationMinutes},cookie);
     assert.equal((await booking('Too long',start,61)).status,400);
@@ -74,9 +95,9 @@ test('version-seven upgrade preserves users, catalog edits and existing rooms; r
     const db=store.db;
     db.prepare("INSERT INTO rooms VALUES ('existing-pro',?,'Existing Pro','pro','pending')").run(u.orgId);
     const catalog=db.prepare('SELECT document FROM catalog_versions ORDER BY revision DESC LIMIT 1').get().document;
-    db.exec('DROP TABLE room_provider_links; DROP TRIGGER room_assignment_rules; DROP TABLE room_reservations; DROP TABLE room_calendar_settings; PRAGMA user_version = 7');
+    db.exec('DROP TABLE room_user_permissions; DROP TABLE room_provider_links; DROP TRIGGER room_assignment_rules; DROP TABLE room_reservations; DROP TABLE room_calendar_settings; PRAGMA user_version = 7');
     store.close();store=openStore(file);
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,9);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,10);
     assert.equal(store.db.prepare('SELECT email FROM users WHERE id=?').get(u.userId).email,'preserved@example.test');
     assert.equal(store.db.prepare('SELECT document FROM catalog_versions ORDER BY revision DESC LIMIT 1').get().document,catalog);
     assert.equal(store.db.prepare("SELECT name FROM rooms WHERE id='existing-pro'").get().name,'Existing Pro');
@@ -84,5 +105,30 @@ test('version-seven upgrade preserves users, catalog edits and existing rooms; r
     store.db.prepare("INSERT INTO room_reservations VALUES ('preserved','existing-pro',?,'Persistent reservation',?,?,?,NULL)").run(u.userId,Date.now()+86400000,Date.now()+90000000,new Date().toISOString());
     store.close();store=openStore(file);
     assert.equal(store.db.prepare("SELECT title FROM room_reservations WHERE id='preserved'").get().title,'Persistent reservation');
+  }finally{store.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('version-nine upgrade preserves assignments and defaults streaming off; approvals survive reopening', () => {
+  const {mkdtempSync,rmSync}=require('node:fs'),{tmpdir}=require('node:os'),{join}=require('node:path');
+  const dir=mkdtempSync(join(tmpdir(),'rlc-permissions-')),file=join(dir,'test.sqlite');
+  let store=openStore(file);
+  try {
+    const u=store.createSignup({orgName:'Migration organization',adminName:'Owner',adminEmail:'permissions@example.test',passwordHash:'fixture'});
+    store.db.prepare("INSERT INTO rooms VALUES ('pro',?,'Preserved Pro','pro','pending')").run(u.orgId);
+    store.db.prepare("INSERT INTO room_assignments VALUES ('pro',?)").run(u.userId);
+    store.db.exec('DROP TABLE room_user_permissions; PRAGMA user_version=9');
+    store.close();store=openStore(file);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,10);
+    assert.equal(store.db.prepare('SELECT count(*) n FROM room_assignments').get().n,1);
+    store.db.prepare("INSERT INTO room_user_permissions(room_id,user_id) VALUES ('pro',?)").run(u.userId);
+    assert.equal(store.db.prepare('SELECT live_streaming FROM room_user_permissions').get().live_streaming,0);
+    assert.equal(store.db.prepare('SELECT youtube_streaming FROM room_user_permissions').get().youtube_streaming,0);
+    assert.throws(()=>store.db.prepare("UPDATE room_user_permissions SET live_streaming=2").run(),/CHECK/);
+    store.db.prepare('UPDATE room_user_permissions SET youtube_streaming=1').run();
+    store.close();store=openStore(file);
+    assert.equal(store.db.prepare('SELECT youtube_streaming FROM room_user_permissions').get().youtube_streaming,1);
+    store.db.prepare('DELETE FROM room_assignments WHERE user_id=?').run(u.userId);
+    assert.equal(store.db.prepare('SELECT count(*) n FROM room_user_permissions').get().n,0);
   }finally{store.close();rmSync(dir,{recursive:true,force:true});}
 });

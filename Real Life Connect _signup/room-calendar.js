@@ -6,6 +6,10 @@ function installRoomCalendar(app, store, { signedIn, workspace, protectedMutatio
     if (req.workspace.kind !== 'organization' || req.workspace.role !== 'admin') return res.status(403).send('Organization administrator access is required.');
     next();
   }
+  function permissions(roomId, userId) {
+    const row = db.prepare('SELECT live_streaming, youtube_streaming FROM room_user_permissions WHERE room_id = ? AND user_id = ?').get(roomId, userId);
+    return { liveStreaming: Boolean(row?.live_streaming), youtubeStreaming: Boolean(row?.youtube_streaming) };
+  }
   function eligible(userId) {
     const user = db.prepare('SELECT status FROM users WHERE id = ?').get(userId);
     const job = db.prepare("SELECT draft FROM iotum_provisioning WHERE user_id = ? AND state = 'ready_test'").get(userId);
@@ -24,6 +28,8 @@ function installRoomCalendar(app, store, { signedIn, workspace, protectedMutatio
     const rooms = db.prepare(`SELECT r.id, r.name, r.status, s.max_minutes, s.mode FROM rooms r JOIN room_calendar_settings s ON s.room_id = r.id WHERE r.organization_id = ? AND r.plan = 'pro' AND r.status != 'suspended' ORDER BY r.name`).all(req.workspace.id)
       .filter(r => isAdmin || eligible(req.account.user_id) && db.prepare('SELECT 1 FROM room_assignments WHERE room_id = ? AND user_id = ?').get(r.id, req.account.user_id))
       .map(r => ({ ...r, assignedUserIds: isAdmin ? db.prepare('SELECT user_id FROM room_assignments WHERE room_id = ?').all(r.id).map(a => a.user_id) : undefined,
+        assignedUserPermissions: isAdmin ? db.prepare('SELECT user_id FROM room_assignments WHERE room_id = ?').all(r.id).map(a => ({ userId: a.user_id, ...permissions(r.id, a.user_id) })) : undefined,
+        permissions: permissions(r.id, req.account.user_id),
         canReserve: eligible(req.account.user_id) && Boolean(db.prepare('SELECT 1 FROM room_assignments WHERE room_id = ? AND user_id = ?').get(r.id, req.account.user_id)) }));
     const members = isAdmin ? db.prepare(`SELECT u.id, u.name, u.email FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.organization_id = ? ORDER BY u.name`).all(req.workspace.id).map(u => ({ ...u, eligible: eligible(u.id) })) : undefined;
     res.json({ rooms, members, maxAssignedUsers: 10, mode: 'local_test' });
@@ -40,10 +46,12 @@ function installRoomCalendar(app, store, { signedIn, workspace, protectedMutatio
     } catch (e) { db.exec('ROLLBACK'); throw e; }
   });
   app.put(base + '/:roomId', ...write, admin, roomAccess, (req, res) => {
-    const { name, maxMinutes, assignedUserIds } = req.body || {};
-    if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || !Number.isInteger(maxMinutes) || maxMinutes < 15 || maxMinutes > 480 || !Array.isArray(assignedUserIds) || assignedUserIds.length > 10 || new Set(assignedUserIds).size !== assignedUserIds.length || assignedUserIds.some(id => typeof id !== 'string') || Object.keys(req.body).some(k => !['name','maxMinutes','assignedUserIds'].includes(k))) return res.status(400).send('Enter a room name, a maximum of 15–480 minutes, and up to 10 distinct users.');
+    const { name, maxMinutes, assignedUserIds, assignedUserPermissions } = req.body || {};
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || !Number.isInteger(maxMinutes) || maxMinutes < 15 || maxMinutes > 480 || !Array.isArray(assignedUserIds) || assignedUserIds.length > 10 || new Set(assignedUserIds).size !== assignedUserIds.length || assignedUserIds.some(id => typeof id !== 'string') || Object.keys(req.body).some(k => !['name','maxMinutes','assignedUserIds','assignedUserPermissions'].includes(k))) return res.status(400).send('Enter a room name, a maximum of 15–480 minutes, and up to 10 distinct users.');
+    if (assignedUserPermissions !== undefined && (!Array.isArray(assignedUserPermissions) || assignedUserPermissions.length !== assignedUserIds.length || new Set(assignedUserPermissions.map(p => p?.userId)).size !== assignedUserIds.length || assignedUserPermissions.some(p => !p || typeof p !== 'object' || Array.isArray(p) || !assignedUserIds.includes(p.userId) || typeof p.liveStreaming !== 'boolean' || typeof p.youtubeStreaming !== 'boolean' || Object.keys(p).some(k => !['userId','liveStreaming','youtubeStreaming'].includes(k))))) return res.status(400).send('Provide one streaming permission setting for each assigned user, using checkbox values only.');
     db.exec('BEGIN IMMEDIATE');
     try {
+      const nextPermissions = assignedUserPermissions || assignedUserIds.map(userId => ({ userId, ...permissions(req.room.id, userId) }));
       for (const id of assignedUserIds) if (!eligible(id) || !db.prepare('SELECT 1 FROM memberships WHERE user_id = ? AND organization_id = ?').get(id, req.workspace.id)) { db.exec('ROLLBACK'); return res.status(400).send('Only organization members with a linked Basic or Plus account can be assigned.'); }
       const future = db.prepare('SELECT user_id FROM room_reservations WHERE room_id = ? AND cancelled_at IS NULL AND ends_at > ?').all(req.room.id, Date.now());
       if (future.some(r => !assignedUserIds.includes(r.user_id))) { db.exec('ROLLBACK'); return res.status(409).send('Cancel the user’s upcoming reservations before removing their room access.'); }
@@ -51,6 +59,8 @@ function installRoomCalendar(app, store, { signedIn, workspace, protectedMutatio
       db.prepare('UPDATE room_calendar_settings SET max_minutes = ? WHERE room_id = ?').run(maxMinutes, req.room.id);
       db.prepare('DELETE FROM room_assignments WHERE room_id = ?').run(req.room.id);
       const add = db.prepare('INSERT INTO room_assignments VALUES (?, ?)'); for (const id of assignedUserIds) add.run(req.room.id, id);
+      const savePermissions = db.prepare('INSERT INTO room_user_permissions VALUES (?, ?, ?, ?)');
+      for (const p of nextPermissions) savePermissions.run(req.room.id, p.userId, Number(p.liveStreaming), Number(p.youtubeStreaming));
       db.exec('COMMIT'); res.json({ saved: true });
     } catch (e) { db.exec('ROLLBACK'); throw e; }
   });
