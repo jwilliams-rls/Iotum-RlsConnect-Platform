@@ -65,10 +65,11 @@ export default function App() {
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
   useEffect(() => {
+    if (user && (page === "account" || page === "signin")) return;
     document.title = pages[page] + " | Real Life Connect";
     window.scrollTo(0, 0);
     document.getElementById("main-content")?.focus({ preventScroll: true });
-  }, [page]);
+  }, [page,user]);
   const currentPlan = plans.find(p => p.id === individualPlan);
   const organizationValid = isOrganizationPackageValid(users, plusRooms, proRooms);
   const roomCount = Number(plusRooms) + Number(proRooms);
@@ -89,6 +90,8 @@ export default function App() {
   }
 
   const accountView = Boolean(user) && (page === "account" || page === "signin");
+  if (checkingSession && (page === "account" || page === "signin")) return <div className="ac-startup" role="status">Opening your workspace…</div>;
+  if (accountView) return <Dashboard user={user} onSignedOut={signedOut}/>;
   return <div className="rlc-page">
     <a href="#main-content" className="rlc-skip" onClick={e => { e.preventDefault(); document.getElementById("main-content").focus(); }}>Skip to content</a>
     <header className="rlc-header">
