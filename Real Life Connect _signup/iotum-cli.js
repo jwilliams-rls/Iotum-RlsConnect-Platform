@@ -19,6 +19,15 @@ function display(job) {
     console.table(products.map(p => ({ Name: p.name, Code: p.slug, Type: p.plan ? 'Plan' : 'Add-on', ProductID: p.id ?? 'Not supplied by API' })));
     return;
   }
+  if (command === 'hosts') {
+    if (args.length !== 1 || !/^[1-9][0-9]*$/.test(args[0])) throw new Error('Usage: npm run iotum -- hosts COMPANY_ID');
+    const { listCompanyHosts } = require('./iotum-host-list');
+    const result = await listCompanyHosts(Number(args[0]), createIotumClient());
+    console.log(JSON.stringify({ companyId: result.companyId, name: result.name, subdomain: result.subdomain }, null, 2));
+    console.table(result.hosts);
+    console.log('Read-only inspection complete. No accounts, subscriptions, roles or local website records were changed.');
+    return;
+  }
   const store = openStore();
   try {
     if (command === 'signups') {
@@ -38,6 +47,6 @@ function display(job) {
       display(await activateTest(store.db, args[0], createIotumClient()));
       console.log(`Test host is provisioned. Sign into the Iotum portal at ${DEFAULT_ORIGIN} using the host email; use its password-reset flow to establish the separate Iotum password.`);
       console.log('The meeting URL is an attendee link, not an authenticated host login. Use Open My Meetings after signing into the Real Life Connect website for host-specific access.');
-    } else throw new Error('Commands: check | signups | prepare EMAIL PRODUCT_ID SUBDOMAIN [COMPANY_NAME] | status JOB_ID | activate JOB_ID | test-role JOB_ID [HOST|COMPANY_ADMIN]');
+    } else throw new Error('Commands: check | hosts COMPANY_ID | signups | prepare EMAIL PRODUCT_ID SUBDOMAIN [COMPANY_NAME] | status JOB_ID | activate JOB_ID | test-role JOB_ID [HOST|COMPANY_ADMIN]');
   } finally { store.close(); }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
