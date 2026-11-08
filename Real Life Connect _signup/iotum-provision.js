@@ -4,9 +4,12 @@ const { DEFAULT_ORIGIN } = require('./iotum-client');
 const id = value => Number.isSafeInteger(value) && value > 0;
 function prepareTest(db, { email, productId, subdomain, companyName }) {
   if ((productId !== null && !id(productId)) || typeof subdomain !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/.test(subdomain)) throw new Error('Supply a positive numeric product ID (or null for reseller default) and a valid 3–50 character subdomain.');
+  db.exec("BEGIN IMMEDIATE");
+  try {
   const user = db.prepare(`SELECT u.id, u.name, u.email, u.organization_id, o.name org_name FROM users u JOIN organizations o ON o.id = u.organization_id WHERE u.email = ?`).get(email);
   if (!user) throw new Error('No local signup matches that email. Submit a development signup first using an email you control.');
   if (companyName !== undefined && (typeof companyName !== 'string' || !companyName.trim() || companyName.trim().length > 200)) throw new Error('Company name must be 1–200 characters.');
+  if (db.prepare('SELECT 1 FROM iotum_provisioning WHERE organization_id = ?').get(user.organization_id)) throw new Error('This organization already has a provisioning record. Link existing hosts instead of preparing another company.');
   const plan = readCatalog(db).catalog.plans.find(p => p.id === 'basic');
   if (!plan) throw new Error('Basic plan is missing.');
   const draft = { userId: user.id, organizationId: user.organization_id, companyName: companyName?.trim() || user.org_name,
@@ -15,7 +18,10 @@ function prepareTest(db, { email, productId, subdomain, companyName }) {
     origin: DEFAULT_ORIGIN, purpose: 'operator test within existing minimum commitment; no customer payment collected' };
   const jobId = randomUUID();
   db.prepare(`INSERT INTO iotum_provisioning (id, user_id, organization_id, state, draft, updated_at) VALUES (?, ?, ?, 'prepared', ?, ?)`).run(jobId, user.id, user.organization_id, JSON.stringify(draft), new Date().toISOString());
-  return getTest(db, jobId);
+  const prepared = getTest(db, jobId);
+  db.exec("COMMIT");
+  return prepared;
+  } catch (error) { db.exec("ROLLBACK"); throw error; }
 }
 function getTest(db, jobId) {
   const job = db.prepare('SELECT * FROM iotum_provisioning WHERE id = ?').get(jobId);

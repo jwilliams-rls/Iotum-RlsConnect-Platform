@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 8) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 9) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -178,6 +178,48 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
           WHERE r.id = NEW.room_id AND m.user_id = NEW.user_id)
       BEGIN SELECT RAISE(ABORT, 'Invalid shared Pro room assignment'); END;
       PRAGMA user_version = 8;
+      COMMIT;`);
+  }
+  if (version < 9) {
+    // Multiple members may map to the same company. Keep host and user IDs unique.
+    // Only short-lived handoff tickets are cleared while rebuilding their parent table.
+    db.exec(`BEGIN IMMEDIATE;
+      DROP TABLE meeting_handoffs;
+      CREATE TABLE iotum_provisioning_next (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        state TEXT NOT NULL CHECK(state IN ('prepared','company_creating','company_created','host_creating','review_required','ready_test')),
+        draft TEXT NOT NULL CHECK(json_valid(draft)),
+        company_id INTEGER,
+        host_id INTEGER UNIQUE,
+        meeting_url TEXT,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO iotum_provisioning_next SELECT * FROM iotum_provisioning;
+      DROP TABLE iotum_provisioning;
+      ALTER TABLE iotum_provisioning_next RENAME TO iotum_provisioning;
+      CREATE INDEX provisioning_company ON iotum_provisioning(company_id);
+      CREATE INDEX provisioning_organization ON iotum_provisioning(organization_id);
+      CREATE TABLE meeting_handoffs (
+        ticket_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        session_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
+        provisioning_id TEXT NOT NULL REFERENCES iotum_provisioning(id),
+        expires_at INTEGER NOT NULL,
+        used_at INTEGER
+      ) STRICT;
+      CREATE INDEX meeting_handoffs_user ON meeting_handoffs(user_id);
+      CREATE TABLE room_provider_links (
+        room_id TEXT PRIMARY KEY REFERENCES room_calendar_settings(room_id),
+        company_id INTEGER NOT NULL,
+        host_id INTEGER NOT NULL UNIQUE,
+        email TEXT NOT NULL,
+        subdomain TEXT NOT NULL,
+        verified_at TEXT NOT NULL
+      ) STRICT;
+      PRAGMA user_version = 9;
       COMMIT;`);
   }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {

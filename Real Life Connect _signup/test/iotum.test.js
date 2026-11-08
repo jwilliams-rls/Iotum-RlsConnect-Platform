@@ -26,7 +26,7 @@ test('prepared test performs no provider writes; completion is repeatable and ke
   try {
     assert.equal(job.state, 'prepared');
     assert.equal(job.draft.companyName, 'Real Life Connect Test');
-    assert.throws(() => prepareTest(store.db, { email: 'test@example.test', productId: 7, subdomain: 'another-test' }), /UNIQUE/);
+    assert.throws(() => prepareTest(store.db, { email: 'test@example.test', productId: 7, subdomain: 'another-test' }), /already has a provisioning record/);
     const completed = await activateTest(store.db, job.id, client);
     assert.equal(completed.state, 'ready_test'); assert.equal(completed.company_id, 101); assert.equal(completed.host_id, 301);
     assert.equal(store.db.prepare('SELECT status FROM users').get().status, 'pending_payment');

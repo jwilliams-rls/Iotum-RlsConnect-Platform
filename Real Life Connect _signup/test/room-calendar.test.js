@@ -74,9 +74,9 @@ test('version-seven upgrade preserves users, catalog edits and existing rooms; r
     const db=store.db;
     db.prepare("INSERT INTO rooms VALUES ('existing-pro',?,'Existing Pro','pro','pending')").run(u.orgId);
     const catalog=db.prepare('SELECT document FROM catalog_versions ORDER BY revision DESC LIMIT 1').get().document;
-    db.exec('DROP TRIGGER room_assignment_rules; DROP TABLE room_reservations; DROP TABLE room_calendar_settings; PRAGMA user_version = 7');
+    db.exec('DROP TABLE room_provider_links; DROP TRIGGER room_assignment_rules; DROP TABLE room_reservations; DROP TABLE room_calendar_settings; PRAGMA user_version = 7');
     store.close();store=openStore(file);
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,8);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,9);
     assert.equal(store.db.prepare('SELECT email FROM users WHERE id=?').get(u.userId).email,'preserved@example.test');
     assert.equal(store.db.prepare('SELECT document FROM catalog_versions ORDER BY revision DESC LIMIT 1').get().document,catalog);
     assert.equal(store.db.prepare("SELECT name FROM rooms WHERE id='existing-pro'").get().name,'Existing Pro');
