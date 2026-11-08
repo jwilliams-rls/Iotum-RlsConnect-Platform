@@ -56,8 +56,8 @@ export function isOrganizationPackageValid(users, plusRooms, proRooms) {
   const values = [users, plusRooms, proRooms];
   if (!values.every(v => v !== "" && Number.isInteger(Number(v)))) return false;
   const [u, plus, pro] = values.map(Number);
-  return u >= 1 && u <= 1000 && plus >= 0 && pro >= 0 && plus <= 100 && pro <= 100
-    && plus + pro >= 1 && u <= usersPerSharedRoom * (plus + pro);
+  return u >= 1 && u <= 1000 && plus === 0 && pro >= 0 && pro <= 100
+    && plus + pro >= 1 && u <= Math.min(10, usersPerSharedRoom) * pro;
 }
 
 
@@ -67,5 +67,5 @@ export function applyCatalog(catalog) {
   plans = catalog.plans;
   features = catalog.features;
   organizationUserCents = catalog.organizationUserCents;
-  usersPerSharedRoom = catalog.usersPerSharedRoom;
+  usersPerSharedRoom = Math.min(10, catalog.usersPerSharedRoom);
 }

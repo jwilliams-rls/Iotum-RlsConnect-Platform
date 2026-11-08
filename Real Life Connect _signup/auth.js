@@ -65,6 +65,7 @@ function installAccountRoutes(app, store, options = {}) {
     if (!member) return res.status(403).send('You do not have access to this workspace.');
     req.workspace = member; req.workspaces = all; next();
   }
+  require('./room-calendar').installRoomCalendar(app, store, { signedIn, workspace, protectedMutation });
   require('./meeting-access').installMeetingAccess(app, store, { signedIn, workspace, protectedMutation }, options.iotumClientFactory);
   app.get('/api/dashboard', signedIn, workspace, (req, res) => {
     const a = req.account, w = req.workspace;

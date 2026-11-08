@@ -9,17 +9,17 @@ test("individual Basic has its own price, independent of organization Basic", ()
 test("organization example and shared-room quantities use exact cents", () => {
   assert.equal(monthlyCents(5, 0, 1), 5494);
   assert.equal(monthlyCents(10, 0, 1), 8489);
-  assert.equal(monthlyCents(20, 1, 1), 16178);
+  assert.equal(monthlyCents(20, 0, 2), 16978);
 });
 test("ten users fit one room; an eleventh requires another room", () => {
   assert.equal(isOrganizationPackageValid(10, 0, 1), true);
   assert.equal(isOrganizationPackageValid(11, 0, 1), false);
-  assert.equal(isOrganizationPackageValid(11, 1, 1), true);
-  assert.equal(isOrganizationPackageValid(20, 1, 1), true);
-  assert.equal(isOrganizationPackageValid(21, 1, 1), false);
+  assert.equal(isOrganizationPackageValid(11, 0, 2), true);
+  assert.equal(isOrganizationPackageValid(20, 0, 2), true);
+  assert.equal(isOrganizationPackageValid(21, 0, 2), false);
 });
 test("discounted package requires a user and room, with bounded whole quantities", () => {
-  for (const args of [[1, 0, 0], [0, 0, 1], ["", 0, 1], [1.5, 0, 1], [1, -1, 1], [1, "", 1], [1001, 100, 1]]) {
+  for (const args of [[1, 1, 0], [1, 1, 1], [1, 0, 0], [0, 0, 1], ["", 0, 1], [1.5, 0, 1], [1, -1, 1], [1, "", 1], [1001, 100, 1]]) {
     assert.equal(isOrganizationPackageValid(...args), false);
   }
 });

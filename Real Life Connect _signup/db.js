@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 7) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 8) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -146,6 +146,38 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
       ) STRICT;
       CREATE INDEX meeting_handoffs_user ON meeting_handoffs(user_id);
       PRAGMA user_version = 7;
+      COMMIT;`);
+  }
+  if (version < 8) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE room_calendar_settings (
+        room_id TEXT PRIMARY KEY REFERENCES rooms(id),
+        max_minutes INTEGER NOT NULL DEFAULT 120 CHECK(max_minutes BETWEEN 15 AND 480),
+        mode TEXT NOT NULL DEFAULT 'local_test' CHECK(mode = 'local_test')
+      ) STRICT;
+      CREATE TABLE room_reservations (
+        id TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL REFERENCES room_calendar_settings(room_id),
+        user_id TEXT NOT NULL REFERENCES users(id),
+        title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 120),
+        starts_at INTEGER NOT NULL,
+        ends_at INTEGER NOT NULL CHECK(ends_at > starts_at),
+        created_at TEXT NOT NULL,
+        cancelled_at TEXT
+      ) STRICT;
+      CREATE INDEX reservations_room_time ON room_reservations(room_id, starts_at, ends_at);
+      CREATE TRIGGER reservation_no_overlap BEFORE INSERT ON room_reservations
+      WHEN NEW.cancelled_at IS NULL AND EXISTS (
+        SELECT 1 FROM room_reservations WHERE room_id = NEW.room_id AND cancelled_at IS NULL
+        AND starts_at < NEW.ends_at AND ends_at > NEW.starts_at)
+      BEGIN SELECT RAISE(ABORT, 'Room time is already reserved'); END;
+      CREATE TRIGGER room_assignment_rules BEFORE INSERT ON room_assignments
+      WHEN (SELECT plan FROM rooms WHERE id = NEW.room_id) != 'pro'
+        OR (SELECT count(*) FROM room_assignments WHERE room_id = NEW.room_id) >= 10
+        OR NOT EXISTS (SELECT 1 FROM memberships m JOIN rooms r ON r.organization_id = m.organization_id
+          WHERE r.id = NEW.room_id AND m.user_id = NEW.user_id)
+      BEGIN SELECT RAISE(ABORT, 'Invalid shared Pro room assignment'); END;
+      PRAGMA user_version = 8;
       COMMIT;`);
   }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {
