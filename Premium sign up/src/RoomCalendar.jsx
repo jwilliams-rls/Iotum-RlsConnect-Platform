@@ -22,7 +22,7 @@ function TaskDialog({ title, busy=false, onClose, children }) {
     <div className="rc-dialog-content">{children}</div>
   </dialog>;
 }
-function RoomSettings({room,members,request,base,onClose,onSaved,onCalendar}) {
+function RoomSettings({room,members,request,base,onClose,onSaved,onCalendar,usersOnly=false}) {
   const [name,setName]=useState(room.name),[maxMinutes,setMax]=useState(room.max_minutes),[assigned,setAssigned]=useState(room.assignedUserIds||[]);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState(false);
   async function save(e){
@@ -30,25 +30,29 @@ function RoomSettings({room,members,request,base,onClose,onSaved,onCalendar}) {
     try{await request(base+'/'+encodeURIComponent(room.id),{method:'PUT',body:JSON.stringify({name,maxMinutes:Number(maxMinutes),assignedUserIds:assigned})});setSaved(true);onSaved();}
     catch(e){setError(e.message);}finally{setBusy(false);}
   }
-  return <TaskDialog title={saved?'Room preferences saved':'Room preferences'} busy={busy} onClose={onClose}>
-    {saved ? <div className="rc-complete"><p role="status"><strong>{name}</strong> has {assigned.length} assigned users and a maximum reservation duration of {maxMinutes} minutes.</p><div className="rc-task-actions"><button className="mc-action" onClick={onCalendar}>View calendar</button><button className="rc-button" onClick={onClose}>Close preferences</button></div></div> :
-    <form className="rc-settings" onSubmit={save}><p>{room.name}</p><fieldset disabled={busy} className="rc-fields"><label>Room name<input required maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><label>Maximum reservation duration (minutes)<input type="number" min="15" max="480" required value={maxMinutes} onChange={e=>setMax(e.target.value)}/></label></fieldset>
-      <fieldset disabled={busy}><legend>Assigned users · {assigned.length}/10</legend>{members.map(m=><label className="rc-checkbox" key={m.id}><input type="checkbox" checked={assigned.includes(m.id)} disabled={!m.eligible||!assigned.includes(m.id)&&assigned.length>=10} onChange={e=>setAssigned(ids=>e.target.checked?[...ids,m.id]:ids.filter(id=>id!==m.id))}/><span>{m.name}<small>{m.email}{!m.eligible&&' · linked Basic or Plus account required'}</small></span></label>)}</fieldset>
-      <p className="ac-note">The duration limit applies to new reservations. Existing reservations keep their original duration.</p>{error&&<p className="ac-error" role="alert">{error}</p>}
-      <div className="rc-task-actions"><button className="mc-action" disabled={busy}>{busy?'Saving…':'Save room preferences'}</button><button type="button" className="rc-button" disabled={busy} onClick={onClose}>Cancel</button></div>
+  return <TaskDialog title={usersOnly?(saved?'Room users saved':'Manage room users'):(saved?'Room preferences saved':'Room preferences')} busy={busy} onClose={onClose}>
+    {saved ? <div className="rc-complete"><p role="status"><strong>{name}</strong> has {assigned.length} assigned users and a maximum reservation duration of {maxMinutes} minutes.</p><div className="rc-task-actions"><button className="mc-action" onClick={onCalendar}>View calendar</button><button className="rc-button" onClick={onClose}>{usersOnly?'Close users':'Close preferences'}</button></div></div> :
+    <form className="rc-settings" onSubmit={save}><p>{room.name}</p>{!usersOnly&&<fieldset disabled={busy} className="rc-fields"><label>Room name<input required maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><label>Maximum reservation duration (minutes)<input type="number" min="15" max="480" required value={maxMinutes} onChange={e=>setMax(e.target.value)}/></label></fieldset>}
+      {usersOnly&&<><p>Select up to 10 linked Basic or Plus users who may reserve this Pro room.</p><fieldset disabled={busy}><legend>Assigned users · {assigned.length}/10</legend>{members.map(m=><label className="rc-checkbox" key={m.id}><input type="checkbox" checked={assigned.includes(m.id)} disabled={!m.eligible||!assigned.includes(m.id)&&assigned.length>=10} onChange={e=>setAssigned(ids=>e.target.checked?[...ids,m.id]:ids.filter(id=>id!==m.id))}/><span>{m.name}<small>{m.email}{!m.eligible&&' · linked Basic or Plus account required'}</small></span></label>)}</fieldset></>}
+      {!usersOnly&&<p className="ac-note">The duration limit applies to new reservations. Existing reservations keep their original duration.</p>}{error&&<p className="ac-error" role="alert">{error}</p>}
+      <div className="rc-task-actions"><button className="mc-action" disabled={busy}>{busy?'Saving…':usersOnly?'Save room users':'Save room preferences'}</button><button type="button" className="rc-button" disabled={busy} onClick={onClose}>Cancel</button></div>
     </form>}
   </TaskDialog>;
 }
-function AddRoom({request,base,onClose,onCreated,onConfigure,rooms}) {
-  const [name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[created,setCreated]=useState(null);
+function RoomActionIcon({kind}) {
+  return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind==='users'?<><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6m3 10v-2a6 6 0 0 0-3-5"/></>:kind==='calendar'?<><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18M7 15h2m6 0h2m-10 3h2"/></>:<><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/><path d="m4 15 4 4"/></>}
+  </svg>;
+}
+function AddRoom({request,base,onClose,onCreated}) {
+  const [name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
   async function create(e){
-    e.preventDefault();if(busy||created)return;setBusy(true);setError('');
-    try{const r=await request(base,{method:'POST',body:JSON.stringify({name})});setCreated({id:r.id,name:name.trim()});onCreated();}
+    e.preventDefault();if(busy)return;setBusy(true);setError('');
+    try{const r=await request(base,{method:'POST',body:JSON.stringify({name})});onCreated({id:r.id,name:name.trim()});}
     catch(e){setError(e.message);}finally{setBusy(false);}
   }
-  return <TaskDialog title={created?'Shared room added':'Add shared room'} busy={busy} onClose={onClose}>
-    {created ? <div className="rc-complete"><p role="status"><strong>{created.name}</strong> was added as a Pro test calendar.</p><p>Next, assign users and set its reservation limit.</p><div className="rc-task-actions"><button className="mc-action" disabled={!rooms.some(r=>r.id===created.id)} onClick={()=>onConfigure(created.id)}>Set room preferences</button><button className="rc-button" onClick={onClose}>Back to shared rooms</button></div></div> :
-    <form className="rc-create" onSubmit={create}><p>This creates a test calendar only. It does not purchase or activate a Pro subscription.</p><label>Room name<input required maxLength={80} disabled={busy} value={name} onChange={e=>setName(e.target.value)}/></label>{error&&<p className="ac-error" role="alert">{error}</p>}<div className="rc-task-actions"><button className="mc-action" disabled={busy}>{busy?'Adding…':'Add test shared room'}</button><button type="button" className="rc-button" disabled={busy} onClick={onClose}>Cancel</button></div></form>}
+  return <TaskDialog title="Add shared room" busy={busy} onClose={onClose}>
+    <form className="rc-create" onSubmit={create}><p>This creates a test calendar only. It does not purchase or activate a Pro subscription.</p><label>Room name<input required maxLength={80} disabled={busy} value={name} onChange={e=>setName(e.target.value)}/></label>{error&&<p className="ac-error" role="alert">{error}</p>}<div className="rc-task-actions"><button type="submit" className="mc-action" disabled={busy}>{busy?'Submitting…':'Submit'}</button><button type="button" className="rc-button" disabled={busy} onClick={onClose}>Cancel</button></div></form>
   </TaskDialog>;
 }
 function ReserveRoom({room,request,endpoint,onClose,onSaved}) {
@@ -100,29 +104,35 @@ function Calendar({room,request,base,onBack,onPreferences,canManage}) {
 }
 export default function RoomCalendar({workspaceId,request,administration=false,canManage=administration}) {
   const [data,setData]=useState(null),[error,setError]=useState(''),[revision,setRevision]=useState(0),[selected,setSelected]=useState('');
-  const [view,setView]=useState('rooms'),[task,setTask]=useState(null);
+  const [view,setView]=useState('rooms'),[task,setTask]=useState(null),[notice,setNotice]=useState(''),[refreshing,setRefreshing]=useState(false);
   const heading=useRef(null),returnFocus=useRef(null);
   const base='/api/workspaces/'+encodeURIComponent(workspaceId)+'/room-calendars';
   useEffect(()=>{
-    let live=true;setError('');
-    request(base).then(d=>{if(live)setData(d);}).catch(e=>{if(live)setError(e.message);});
+    let live=true;setError('');setRefreshing(true);
+    request(base).then(d=>{if(live)setData(d);}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setRefreshing(false);});
     return()=>{live=false;};
   },[base,revision,request]);
   useEffect(()=>{if(view==='rooms')heading.current?.focus({preventScroll:true});},[view]);
   const room=data?.rooms.find(r=>r.id===selected);
   const refresh=()=>setRevision(n=>n+1);
-  function openCalendar(id){returnFocus.current=document.activeElement;setSelected(id);setView('calendar');}
+  function openCalendar(id){setNotice('');returnFocus.current=document.activeElement;setSelected(id);setView('calendar');}
   function back(){setView('rooms');setTask(null);requestAnimationFrame(()=>{if(returnFocus.current?.isConnected)returnFocus.current.focus({preventScroll:true});else heading.current?.focus({preventScroll:true});});}
-  function configure(id){setSelected(id);setTask('settings');}
+  function manageUsers(id){setNotice('');setSelected(id);setTask('users');}
+  function configure(id){setNotice('');setSelected(id);setTask('settings');}
   return <div className="rc-root">
     <p className="rc-test-note">Test mode: calendars and reservations are saved here. Live meetings, invitations, and summary notices are not connected.</p>
     {error&&<div className="ac-error" role="alert">{error} <button className="rc-button" onClick={refresh}>Retry room list</button></div>}
     {!data&&!error&&<p role="status">Loading shared rooms…</p>}
-    {view==='rooms'&&<><header className="rc-room-list-header"><div><h2 ref={heading} tabIndex={-1}>Shared rooms</h2><p>Select a Pro room to view availability or create a reservation.</p></div>{canManage&&<button className="mc-action" onClick={()=>setTask('create')}>Add shared room</button>}</header>
-      {data&&(data.rooms.length?<div className="rc-room-list">{data.rooms.map(r=><article className="rc-room-card" key={r.id}><span className="rc-badge">SHARED PRO ROOM</span><h3>{r.name}</h3><p>Maximum reservation: {r.max_minutes} minutes</p>{canManage&&<p>{r.assignedUserIds?.length||0} of 10 users assigned</p>}<div className="rc-task-actions"><button className="mc-action" onClick={()=>openCalendar(r.id)}>View calendar</button>{canManage&&<button className="rc-button" onClick={()=>configure(r.id)}>Room preferences</button>}</div></article>)}</div>:<div className="rc-empty"><h3>No shared rooms yet</h3><p>{canManage?'Add a shared Pro test calendar to get started.':'Your organization administrator needs to assign a shared Pro room to you.'}</p></div>)}
+    {view==='rooms'&&<><header className="rc-room-list-header"><h2 ref={heading} tabIndex={-1}>Shared rooms</h2><p>{canManage?'Use the people icon to assign users, the calendar to view availability, or the pencil to edit room preferences.':'Use the calendar icon to view availability and create a reservation.'}</p></header>
+      <div className="rc-table-toolbar">{canManage&&<button className="mc-action" onClick={()=>{setNotice('');setTask('create');}}>Add shared room</button>}{data&&<span>{data.rooms.length} {data.rooms.length===1?'room':'rooms'}</span>}</div>
+      {notice&&<p className="rc-room-notice" role="status">{notice}</p>}{refreshing&&data&&<p className="ac-note" role="status">Updating shared rooms…</p>}
+      {data&&<div className="rc-rooms-table-wrap" role="region" aria-label="Shared rooms table" tabIndex={0}><table className={'rc-rooms-table'+(canManage?'':' rc-rooms-member-table')}><caption className="rlc-sr-only">Shared Pro rooms and available actions</caption><thead><tr><th scope="col">Room name</th><th scope="col">Plan</th><th scope="col">Maximum duration</th>{canManage&&<th scope="col" className="rc-action-column">Users</th>}<th scope="col" className="rc-action-column">Calendar</th>{canManage&&<th scope="col" className="rc-action-column">Preferences</th>}</tr></thead><tbody>
+        {data.rooms.map(r=><tr key={r.id}><th scope="row">{r.name}</th><td>Pro</td><td>{r.max_minutes} minutes</td>{canManage&&<td className="rc-action-column"><span className="rc-user-count">{r.assignedUserIds?.length||0} / 10</span><button type="button" className="rc-row-action" aria-label={'Manage users for '+r.name} title="Manage room users" onClick={()=>manageUsers(r.id)}><RoomActionIcon kind="users"/></button></td>}<td className="rc-action-column"><button type="button" className="rc-row-action" aria-label={'View calendar for '+r.name} title="View calendar" onClick={()=>openCalendar(r.id)}><RoomActionIcon kind="calendar"/></button></td>{canManage&&<td className="rc-action-column"><button type="button" className="rc-row-action" aria-label={'Edit room preferences for '+r.name} title="Edit room preferences" onClick={()=>configure(r.id)}><RoomActionIcon kind="edit"/></button></td>}</tr>)}
+        {!data.rooms.length&&<tr><td colSpan={canManage?6:4} className="rc-table-empty"><strong>No shared rooms yet.</strong> {canManage?'Add a shared Pro test calendar to get started.':'Your organization administrator needs to assign a shared Pro room to you.'}</td></tr>}
+      </tbody></table></div>}
       <footer className="rc-list-footer"><a className="rc-button" href="#account?meetings">Exit shared rooms — My Meetings</a></footer></>}
     {view==='calendar'&&(room?<Calendar key={room.id} room={room} request={request} base={base} onBack={back} canManage={canManage} onPreferences={()=>configure(room.id)}/>:data&&<div className="rc-empty"><p>This room is no longer available.</p><button className="rc-button" onClick={back}>Back to shared rooms</button></div>)}
-    {task==='create'&&canManage&&<AddRoom request={request} base={base} rooms={data?.rooms||[]} onClose={()=>setTask(null)} onCreated={refresh} onConfigure={configure}/>}
-    {task==='settings'&&canManage&&room&&<RoomSettings key={room.id} room={room} members={data?.members||[]} request={request} base={base} onClose={()=>setTask(null)} onSaved={refresh} onCalendar={()=>{setTask(null);setView('calendar');}}/>}
+    {task==='create'&&canManage&&<AddRoom request={request} base={base} onClose={()=>setTask(null)} onCreated={created=>{setTask(null);setNotice(created.name+' was added as a Pro test calendar. Use the people icon to assign users and the pencil to set room preferences.');refresh();}}/>}
+    {(task==='settings'||task==='users')&&canManage&&room&&<RoomSettings key={room.id+task} usersOnly={task==='users'} room={room} members={data?.members||[]} request={request} base={base} onClose={()=>setTask(null)} onSaved={refresh} onCalendar={()=>{setTask(null);setView('calendar');}}/>}
   </div>;
 }

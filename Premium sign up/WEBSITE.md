@@ -80,3 +80,11 @@ Organization member lookup and shared-room management are separate admin views r
 On narrow screens, a menu button opens a native modal navigation drawer with Close and Escape actions. Workspace selection remains available for accounts with multiple memberships. All new text uses the requested navy palette, with the official logo on white.
 
 Validation: local DOM checks pass for sidebar routing, active sections, content scroll reset, separate admin tasks, mobile drawer controls, member/admin boundaries and the existing SSO action. Room task flow checks still pass. Browser QA with sample data confirms fixed navigation during workspace scrolling, section changes, returning to the public product site and re-entering the application. Pricing tests and the production build pass. This is frontend-only: no database migration, backend restart or live provider change is required. Uploaded admin screenshots were used as layout references only; their customer records were not imported.
+
+## Shared room table and task dialogs
+
+Shared Rooms uses a labeled table with room name, plan and maximum reservation duration. Administrators also see Users (assigned count out of 10 plus a people icon), Calendar and Preferences (pencil icon). The people action opens a focused user-assignment dialog for up to ten linked Basic or Plus members; the pencil edits the room name and duration while preserving assignments. Member views retain calendar access without administrator actions.
+
+Add shared room is positioned above the table on the left. Its popup has Submit and Cancel. A successful submission closes the popup, refreshes the canonical room list and displays confirmation; failed submissions preserve the form and allow retry. Creation remains a local Pro test calendar and does not purchase or activate a subscription.
+
+Validation: production build; DOM flow checks for assignment persistence, separate user/preferences dialogs, member boundaries, room creation success/failure/cancel, calendar navigation and reservation completion; browser review of the table and popup using sample data.
