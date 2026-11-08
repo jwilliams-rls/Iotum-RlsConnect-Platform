@@ -121,3 +121,9 @@ Reserve a room opens the assigned-room table and calendars. A meeting-row Calend
 Start meeting, Add documents and Add participants are visibly unavailable in meeting details until their integrations are implemented. Recurrence and agenda editing remain future work. All bookings are local test reservations.
 
 Backend route GET /api/workspaces/:id/room-meetings requires an authenticated workspace membership and returns only the requesting eligible Basic/Plus host’s own reservations, with current approvals. It spans future dates rather than just the visible calendar week. This update requires a backend restart, with no database schema change. Validation: all 28 backend tests, room-flow and workspace DOM checks, production build, and browser review with sample meetings.
+
+## Host-controlled meeting settings
+
+Scheduling now includes Meeting participation mode (Conversation, Q&A, Presentation) with contextual explanations and Require a meeting PIN. PIN fields are masked and accept 4–12 digits. New reservations default to Conversation without a PIN. Create another reservation resets these choices. Test-mode copy explicitly states that these settings are not yet applied to live conferences.
+
+The upcoming-meetings table has an Edit meeting action for the host’s own future reservations. The dialog loads current settings, allows title/mode/PIN changes and saves with a revision check. Cancel discards edits. Existing PINs are not revealed; leave the replacement blank to keep the current PIN or uncheck the requirement to clear it. Details show the selected mode and whether a PIN is required, never the PIN itself. Room and time cannot be changed by this form. Streaming approvals remain exclusively under Organization Admin, and participant invitations, rescheduling, agendas and live conference synchronization are separate work. Backend schema 11 and a restart are required.

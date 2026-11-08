@@ -67,8 +67,8 @@ test('version-eight upgrade preserves mappings, sessions, reservations and edite
  db.prepare('INSERT INTO sessions VALUES (?,?,?,?,?)').run('a'.repeat(64),f.owner.userId,now,now,now+3600000);
  db.prepare("INSERT INTO meeting_handoffs VALUES (?,?,?,?,'owner-job',?,NULL)").run('b'.repeat(64),f.owner.userId,f.owner.orgId,'a'.repeat(64),now+60000);
  const catalog=db.prepare('SELECT document FROM catalog_versions ORDER BY revision DESC LIMIT 1').get().document;
- db.exec('DROP TABLE room_user_permissions; DROP TABLE room_provider_links; PRAGMA user_version = 8');f.store.close();
- reopened=openStore(file);assert.equal(reopened.db.prepare('PRAGMA user_version').get().user_version,10);
+ db.exec('DROP TABLE room_meeting_options; DROP TABLE room_user_permissions; DROP TABLE room_provider_links; PRAGMA user_version = 8');f.store.close();
+ reopened=openStore(file);assert.equal(reopened.db.prepare('PRAGMA user_version').get().user_version,11);
  assert.equal(reopened.db.prepare("SELECT host_id FROM iotum_provisioning WHERE id='owner-job'").get().host_id,201);
  assert.equal(reopened.db.prepare('SELECT count(*) n FROM sessions').get().n,1);
  assert.equal(reopened.db.prepare('SELECT count(*) n FROM meeting_handoffs').get().n,0);

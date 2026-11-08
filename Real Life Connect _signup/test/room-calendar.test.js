@@ -95,9 +95,9 @@ test('version-seven upgrade preserves users, catalog edits and existing rooms; r
     const db=store.db;
     db.prepare("INSERT INTO rooms VALUES ('existing-pro',?,'Existing Pro','pro','pending')").run(u.orgId);
     const catalog=db.prepare('SELECT document FROM catalog_versions ORDER BY revision DESC LIMIT 1').get().document;
-    db.exec('DROP TABLE room_user_permissions; DROP TABLE room_provider_links; DROP TRIGGER room_assignment_rules; DROP TABLE room_reservations; DROP TABLE room_calendar_settings; PRAGMA user_version = 7');
+    db.exec('DROP TABLE room_meeting_options; DROP TABLE room_user_permissions; DROP TABLE room_provider_links; DROP TRIGGER room_assignment_rules; DROP TABLE room_reservations; DROP TABLE room_calendar_settings; PRAGMA user_version = 7');
     store.close();store=openStore(file);
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,10);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,11);
     assert.equal(store.db.prepare('SELECT email FROM users WHERE id=?').get(u.userId).email,'preserved@example.test');
     assert.equal(store.db.prepare('SELECT document FROM catalog_versions ORDER BY revision DESC LIMIT 1').get().document,catalog);
     assert.equal(store.db.prepare("SELECT name FROM rooms WHERE id='existing-pro'").get().name,'Existing Pro');
@@ -117,9 +117,9 @@ test('version-nine upgrade preserves assignments and defaults streaming off; app
     const u=store.createSignup({orgName:'Migration organization',adminName:'Owner',adminEmail:'permissions@example.test',passwordHash:'fixture'});
     store.db.prepare("INSERT INTO rooms VALUES ('pro',?,'Preserved Pro','pro','pending')").run(u.orgId);
     store.db.prepare("INSERT INTO room_assignments VALUES ('pro',?)").run(u.userId);
-    store.db.exec('DROP TABLE room_user_permissions; PRAGMA user_version=9');
+    store.db.exec('DROP TABLE room_meeting_options; DROP TABLE room_user_permissions; PRAGMA user_version=9');
     store.close();store=openStore(file);
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,10);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version,11);
     assert.equal(store.db.prepare('SELECT count(*) n FROM room_assignments').get().n,1);
     store.db.prepare("INSERT INTO room_user_permissions(room_id,user_id) VALUES ('pro',?)").run(u.userId);
     assert.equal(store.db.prepare('SELECT live_streaming FROM room_user_permissions').get().live_streaming,0);

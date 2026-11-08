@@ -10,6 +10,23 @@ function installRoomCalendar(app, store, { signedIn, workspace, protectedMutatio
     const row = db.prepare('SELECT live_streaming, youtube_streaming FROM room_user_permissions WHERE room_id = ? AND user_id = ?').get(roomId, userId);
     return { liveStreaming: Boolean(row?.live_streaming), youtubeStreaming: Boolean(row?.youtube_streaming) };
   }
+  function meetingOptions(id) {
+    const row = db.prepare('SELECT mute_mode, security_pin, revision FROM room_meeting_options WHERE reservation_id = ?').get(id);
+    return { muteMode: row?.mute_mode || 'conversation', requirePin: Boolean(row?.security_pin), revision: row?.revision || 0 };
+  }
+  function ownReservation(req, res, next) {
+    const row = db.prepare('SELECT * FROM room_reservations WHERE id = ? AND room_id = ? AND user_id = ? AND cancelled_at IS NULL').get(req.params.reservationId, req.room.id, req.account.user_id);
+    if (!row || !eligible(req.account.user_id) || !db.prepare('SELECT 1 FROM room_assignments WHERE room_id = ? AND user_id = ?').get(req.room.id, req.account.user_id)) return res.status(404).send('Meeting is not available to this host.');
+    if (row.starts_at <= Date.now()) return res.status(409).send('Only upcoming reservations can be edited.');
+    req.reservation = row; next();
+  }
+  function readOptions(body, existingPin=null) {
+    const { muteMode='conversation', requirePin=false, securityPin } = body;
+    if (!['conversation','q&a','presentation'].includes(muteMode) || typeof requirePin !== 'boolean' || (securityPin !== undefined && (typeof securityPin !== 'string' || !/^\d{4,12}$/.test(securityPin)))) return null;
+    const pin = requirePin ? (securityPin ?? existingPin) : null;
+    if (requirePin && !pin) return null;
+    return { muteMode, pin };
+  }
   function eligible(userId) {
     const user = db.prepare('SELECT status FROM users WHERE id = ?').get(userId);
     const job = db.prepare("SELECT draft FROM iotum_provisioning WHERE user_id = ? AND state = 'ready_test'").get(userId);
@@ -37,7 +54,7 @@ function installRoomCalendar(app, store, { signedIn, workspace, protectedMutatio
         id: b.id, title: b.title, roomId: b.room_id, roomName: b.room_name,
         startsAt: new Date(b.starts_at).toISOString(), endsAt: new Date(b.ends_at).toISOString(),
         status: b.starts_at <= now ? 'in_progress_reservation' : 'upcoming',
-        permissions: permissions(b.room_id, req.account.user_id), canCancel: true
+        permissions: permissions(b.room_id, req.account.user_id), ...meetingOptions(b.id), canEdit: b.starts_at > now, canCancel: true
       }));
     res.json({ meetings, mode: 'local_test' });
   });
@@ -94,17 +111,43 @@ function installRoomCalendar(app, store, { signedIn, workspace, protectedMutatio
   app.post(base + '/:roomId/reservations', ...write, roomAccess, (req, res) => {
     if (!eligible(req.account.user_id) || !db.prepare('SELECT 1 FROM room_assignments WHERE room_id = ? AND user_id = ?').get(req.room.id, req.account.user_id)) return res.status(403).send('You must be assigned to this room with a linked Basic or Plus account to reserve it.');
     const { title, startsAt, durationMinutes } = req.body || {};
+    const options = readOptions(req.body || {});
     const start = typeof startsAt === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(startsAt) ? Date.parse(startsAt) : NaN;
-    if (typeof title !== 'string' || !title.trim() || title.trim().length > 120 || !Number.isFinite(start) || new Date(start).toISOString() !== startsAt || start <= Date.now() || start > Date.now() + 365 * 86400000 || !Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > req.room.max_minutes || Object.keys(req.body).some(k => !['title','startsAt','durationMinutes'].includes(k))) return res.status(400).send('Enter a title and a future time within one year. Duration must be at least 15 minutes and within the room limit.');
+    if (typeof title !== 'string' || !title.trim() || title.trim().length > 120 || !Number.isFinite(start) || new Date(start).toISOString() !== startsAt || start <= Date.now() || start > Date.now() + 365 * 86400000 || !Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > req.room.max_minutes || Object.keys(req.body).some(k => !['title','startsAt','durationMinutes','muteMode','requirePin','securityPin'].includes(k))) return res.status(400).send('Enter a title and a future time within one year. Duration must be at least 15 minutes and within the room limit.');
+    if (!options) return res.status(400).send('Choose a valid participation mode and a 4–12 digit meeting PIN when required.');
     if (db.prepare('SELECT count(*) n FROM room_reservations WHERE user_id = ? AND cancelled_at IS NULL AND ends_at > ?').get(req.account.user_id, Date.now()).n >= 100) return res.status(429).send('You have reached the limit of 100 upcoming reservations.');
     const id = randomUUID();
+    db.exec('BEGIN IMMEDIATE');
     try {
       db.prepare('INSERT INTO room_reservations VALUES (?, ?, ?, ?, ?, ?, ?, NULL)').run(id, req.room.id, req.account.user_id, title.trim(), start, start + durationMinutes * 60000, new Date().toISOString());
+      db.prepare('INSERT INTO room_meeting_options(reservation_id, mute_mode, security_pin) VALUES (?, ?, ?)').run(id, options.muteMode, options.pin);
+      db.exec('COMMIT');
       res.status(201).json({ id, mode: 'local_test', message: 'Test reservation saved. No live meeting or invitation was created.' });
     } catch (e) {
+      db.exec('ROLLBACK');
       if (e.message.includes('Room time is already reserved')) return res.status(409).send('That time overlaps an existing reservation. Choose another time.');
       throw e;
     }
+  });
+  app.get(base + '/:roomId/reservations/:reservationId', ...read, roomAccess, ownReservation, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ id: req.reservation.id, title: req.reservation.title, ...meetingOptions(req.reservation.id), mode: 'local_test' });
+  });
+  app.put(base + '/:roomId/reservations/:reservationId', ...write, roomAccess, ownReservation, (req, res) => {
+    const body = req.body || {};
+    if (typeof body.title !== 'string' || !body.title.trim() || body.title.trim().length > 120 || !Number.isInteger(body.revision) || body.revision < 0 || Object.keys(body).some(k => !['title','muteMode','requirePin','securityPin','revision'].includes(k))) return res.status(400).send('Enter a meeting title and valid meeting settings. Use the room calendar to change the reserved time.');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const current = db.prepare('SELECT * FROM room_meeting_options WHERE reservation_id = ?').get(req.reservation.id);
+      if ((current?.revision || 0) !== body.revision) { db.exec('ROLLBACK'); return res.status(409).send('Meeting settings changed. Close and reopen Edit meeting to load the latest settings.'); }
+      const options = readOptions(body, current?.security_pin);
+      if (!options) { db.exec('ROLLBACK'); return res.status(400).send('Choose a valid participation mode and a 4–12 digit meeting PIN when required.'); }
+      db.prepare('UPDATE room_reservations SET title = ? WHERE id = ?').run(body.title.trim(), req.reservation.id);
+      db.prepare(`INSERT INTO room_meeting_options(reservation_id, mute_mode, security_pin, revision) VALUES (?, ?, ?, 1)
+        ON CONFLICT(reservation_id) DO UPDATE SET mute_mode=excluded.mute_mode, security_pin=excluded.security_pin, revision=room_meeting_options.revision+1`).run(req.reservation.id, options.muteMode, options.pin);
+      db.exec('COMMIT');
+      res.json({ saved: true, message: 'Test meeting settings saved. No live conference was changed.' });
+    } catch(e) { db.exec('ROLLBACK'); throw e; }
   });
   app.delete(base + '/:roomId/reservations/:reservationId', ...write, roomAccess, (req, res) => {
     const row = db.prepare('SELECT * FROM room_reservations WHERE id = ? AND room_id = ? AND cancelled_at IS NULL').get(req.params.reservationId, req.room.id);
