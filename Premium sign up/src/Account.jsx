@@ -67,6 +67,31 @@ function DepartmentsAdmin({workspaceId,request}) {
     </div>}
   </section>;
 }
+
+function OrganizationMembersTable({members}) {
+  const [filters,setFilters]=useState({name:'',email:'',department:'',role:'',status:''});
+  const fields=[['name','Name'],['email','Email'],['department','Department'],['role','Website role'],['status','Payment status']];
+  const filtered=members.filter(m=>fields.every(([key])=>{
+    const value=key==='department'?m.departmentName||'':m[key]||'';
+    return String(value).toLocaleLowerCase().includes(filters[key].trim().toLocaleLowerCase());
+  }));
+  const update=(key,value)=>setFilters(current=>({...current,[key]:value}));
+  return <section className="ac-member-search">
+    <p className="ac-note">Search by one or more columns. All filters apply to the entire table at the same time.</p>
+    <div className="ac-table" role="region" aria-label="Organization members table" tabIndex={0}>
+      <table className="app-data-table ac-filterable-table">
+        <caption>{filtered.length} of {members.length} organization members shown</caption>
+        <thead>
+          <tr>{fields.map(([key,label])=><th scope="col" key={key}>{label}</th>)}</tr>
+          <tr className="ac-column-filters">{fields.map(([key,label])=><th key={key}><label className="rlc-sr-only" htmlFor={'ac-filter-'+key}>Search {label}</label><input id={'ac-filter-'+key} type="search" value={filters[key]} onChange={e=>update(key,e.target.value)} placeholder={'Search '+label.toLowerCase()} autoComplete="off"/></th>)}</tr>
+        </thead>
+        <tbody>{filtered.map(m=><tr key={m.id}><th scope="row">{m.name}</th><td>{m.email}</td><td>{m.departmentName||'Unassigned'}</td><td>{m.role}</td><td>{m.status}</td></tr>)}
+        {!filtered.length&&<tr><td colSpan={5}>No members match these filters. <button type="button" className="rc-button" onClick={()=>setFilters({name:'',email:'',department:'',role:'',status:''})}>Clear filters</button></td></tr>}</tbody>
+      </table>
+    </div>
+    {Object.values(filters).some(Boolean)&&<button type="button" className="rc-button" onClick={()=>setFilters({name:'',email:'',department:'',role:'',status:''})}>Clear all filters</button>}
+  </section>;
+}
 export function Dashboard({ onSignedOut, user:sessionUser }) {
   const [data, setData] = useState(null), [error, setError] = useState(''), [workspace, setWorkspace] = useState('');
   const [tab,setTab]=useState(accountSection);
@@ -152,7 +177,7 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
     {tab==='rooms' && <div className="ac-panel"><RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} canManage={false}/></div>}
     {tab==='profile' && <div className="ac-panel"><h2>My account</h2><dl><dt>Name</dt><dd>{data.user.name}</dd><dt>Email</dt><dd>{data.user.email}</dd><dt>Workspace permission</dt><dd>{data.workspace.role==='admin'?'Administrator':'Member'}</dd><dt>Payment status</dt><dd>{data.user.status==='pending_payment'?'Pending payment':data.user.status}</dd></dl></div>}
     {tab==='admin'&&isAdmin&&<section className="ac-panel ac-admin-panel"><header className="ac-section-header"><div><p className="ac-plan">{data.workspace.name}</p><h2>{adminSection==='members'?'Organization members':adminSection==='departments'?'Departments':'Shared room settings'}</h2></div><nav className="ac-admin-switch" aria-label="Organization sections"><button aria-pressed={adminSection==='members'} onClick={()=>go('admin')}>Members</button><button aria-pressed={adminSection==='departments'} onClick={()=>go('admin','departments')}>Departments</button><button aria-pressed={adminSection==='rooms'} onClick={()=>go('admin','rooms')}>Shared rooms</button></nav></header>
-      {adminSection==='departments'?<DepartmentsAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='rooms'?<RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} administration/>:adminError?<p role="alert" className="ac-error">{adminError}</p>:!admin?<p role="status">Loading organization…</p>:<><p className="ac-note">People who belong to this organization. Their website permissions are shown below.</p><div className="ac-table" role="region" aria-label="Organization members table" tabIndex={0}><table className="app-data-table"><caption>{admin.members.length} organization members</caption><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Website role</th><th scope="col">Payment status</th></tr></thead><tbody>{admin.members.map(m=><tr key={m.id}><th scope="row">{m.name}</th><td>{m.email}</td><td>{m.role}</td><td>{m.status}</td></tr>)}</tbody></table></div></>}
+      {adminSection==='departments'?<DepartmentsAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='rooms'?<RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} administration/>:adminError?<p role="alert" className="ac-error">{adminError}</p>:!admin?<p role="status">Loading organization…</p>:<OrganizationMembersTable members={admin.members}/>}
     </section>}
     </>}
     </main><footer className="ac-app-footer">Real Life Connect · Real Life Systems, LLC</footer></div>
