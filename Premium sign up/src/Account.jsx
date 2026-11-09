@@ -117,6 +117,8 @@ function CreateHostAdmin({workspaceId,request}) {
   const initial={name:'',email:'',phone:'',jobTitle:'',departmentId:'',timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'America/Los_Angeles',plan:'basic'};
   const [details,setDetails]=useState(initial),[step,setStep]=useState(1),[departments,setDepartments]=useState([]),[drafts,setDrafts]=useState([]);
   const [pendingPageSize,setPendingPageSize]=useState(10),[pendingPage,setPendingPage]=useState(1);
+  const [hostFilters,setHostFilters]=useState({name:'',email:'',department:'',jobTitle:'',plan:'',status:''});
+  const [editingHost,setEditingHost]=useState(null),[cancellingHost,setCancellingHost]=useState(null);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[newDepartment,setNewDepartment]=useState(''),[addingDepartment,setAddingDepartment]=useState(false),[showNewDepartment,setShowNewDepartment]=useState(false);
   const base='/api/workspaces/'+encodeURIComponent(workspaceId);
   useEffect(()=>{let live=true;setLoading(true);setError('');
@@ -145,10 +147,34 @@ function CreateHostAdmin({workspaceId,request}) {
       setDetails(initial);setStep(1);
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
-  const pendingPageCount=Math.max(1,Math.ceil(drafts.length/pendingPageSize));
+  const hostColumns=[['name','Name'],['email','Email'],['department','Department'],['jobTitle','Job title'],['plan','Plan'],['status','Status']];
+  const filteredHosts=drafts.filter(d=>hostColumns.every(([key])=>{
+    const value=key==='department'?d.departmentName||'Unassigned':key==='status'?d.status==='cancelled'?'Cancelled':'Pending billing':key==='jobTitle'?d.jobTitle||'':d[key]||'';
+    return String(value).toLocaleLowerCase().includes(hostFilters[key].trim().toLocaleLowerCase());
+  }));
+  function hostFilter(key,value){setHostFilters(f=>({...f,[key]:value}));setPendingPage(1);}
+  async function refreshHosts(){const result=await request(base+'/pending-hosts');setDrafts(result.hosts);}
+  async function updateHost(e){
+    e.preventDefault();if(busy||!editingHost)return;setBusy(true);setError('');setNotice('');
+    try{
+      await request(base+'/pending-hosts/'+encodeURIComponent(editingHost.id),{method:'PUT',body:JSON.stringify({
+        name:editingHost.name,email:editingHost.email,phone:editingHost.phone||'',jobTitle:editingHost.jobTitle||'',
+        departmentId:editingHost.departmentId||'',timezone:editingHost.timezone,plan:editingHost.plan
+      })});
+      await refreshHosts();setEditingHost(null);setNotice('Pending host updated.');
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function cancelHost(){
+    if(busy||!cancellingHost)return;setBusy(true);setError('');setNotice('');
+    try{
+      await request(base+'/pending-hosts/'+encodeURIComponent(cancellingHost.id)+'/cancel',{method:'POST',body:'{}'});
+      await refreshHosts();setCancellingHost(null);setNotice('Request cancelled. No payment or Iotum action occurred.');
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  const pendingPageCount=Math.max(1,Math.ceil(filteredHosts.length/pendingPageSize));
   const currentPendingPage=Math.min(pendingPage,pendingPageCount);
   const pendingStart=(currentPendingPage-1)*pendingPageSize;
-  const visibleDrafts=drafts.slice(pendingStart,pendingStart+pendingPageSize);
+  const visibleDrafts=filteredHosts.slice(pendingStart,pendingStart+pendingPageSize);
   return <section className="ac-host-admin">
     <p className="ac-note">Create a personal Basic, Plus, or Pro host subscription independently of shared rooms. This development form saves a pending request only; billing, invitations and Iotum activation are not connected.</p>
     {loading?<p role="status">Loading host setup…</p>:<>
@@ -167,10 +193,35 @@ function CreateHostAdmin({workspaceId,request}) {
       {step===2&&<div className="ac-host-form"><h3>Select personal host subscription</h3><fieldset><legend>Subscription plan</legend>{[['basic','Basic'],['plus','Plus'],['pro','Pro']].map(([value,label])=><label key={value} className="ac-host-plan"><input type="radio" name="host-plan" checked={details.plan===value} onChange={()=>field('plan',value)}/>{label}</label>)}</fieldset><p className="ac-note">A shared room is not required. Pricing and payment will be presented when billing integration is available.</p><div className="ac-host-actions"><button type="button" className="rc-button" onClick={()=>setStep(1)}>Back</button><button type="button" className="mc-action" onClick={()=>setStep(3)}>Review host</button></div></div>}
       {step===3&&<div className="ac-host-form"><h3>Review host request</h3><dl><dt>Host</dt><dd>{details.name}</dd><dt>Email</dt><dd>{details.email}</dd><dt>Phone</dt><dd>{details.phone||'Not provided'}</dd><dt>Job title</dt><dd>{details.jobTitle||'Not provided'}</dd><dt>Department</dt><dd>{departments.find(d=>d.id===details.departmentId)?.name||'Unassigned'}</dd><dt>Time zone</dt><dd>{details.timezone}</dd><dt>Personal plan</dt><dd>{details.plan.toUpperCase()}</dd><dt>Initial status</dt><dd>Pending billing — no activation</dd></dl><div className="ac-host-actions"><button type="button" className="rc-button" disabled={busy} onClick={()=>setStep(2)}>Back</button><button type="button" className="mc-action" disabled={busy} onClick={save}>{busy?'Saving…':'Save pending host'}</button></div></div>}
       {error&&<p role="alert" className="ac-error">{error}</p>}{notice&&<p role="status">{notice}</p>}
-      <h3>Pending host requests</h3><div className="ac-table" role="region" aria-label="Pending host requests" tabIndex={0}><table className="app-data-table"><caption>{drafts.length} pending host requests</caption><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Department</th><th scope="col">Job title</th><th scope="col">Plan</th><th scope="col">Status</th></tr></thead><tbody>{visibleDrafts.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td>{d.email}</td><td>{d.departmentName||'Unassigned'}</td><td>{d.jobTitle||'—'}</td><td>{d.plan.toUpperCase()}</td><td>Pending billing</td></tr>)}{!drafts.length&&<tr><td colSpan={6}>No pending hosts yet.</td></tr>}</tbody></table></div>
+      <h3>Pending host requests</h3>
+      {editingHost&&<form className="ac-host-form ac-host-edit" onSubmit={updateHost}>
+        <h4>Edit pending host: {editingHost.name}</h4>
+        <label>Full name<input required maxLength={200} value={editingHost.name} onChange={e=>setEditingHost(h=>({...h,name:e.target.value}))}/></label>
+        <label>Email<input type="email" required maxLength={254} value={editingHost.email} onChange={e=>setEditingHost(h=>({...h,email:e.target.value}))}/></label>
+        <label>Phone (optional)<input maxLength={40} value={editingHost.phone||''} onChange={e=>setEditingHost(h=>({...h,phone:e.target.value}))}/></label>
+        <label>Job title (optional)<input maxLength={120} value={editingHost.jobTitle||''} onChange={e=>setEditingHost(h=>({...h,jobTitle:e.target.value}))}/></label>
+        <label>Department<select value={editingHost.departmentId||''} onChange={e=>setEditingHost(h=>({...h,departmentId:e.target.value}))}><option value="">Unassigned</option>{departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+        <label>Time zone<select value={editingHost.timezone} onChange={e=>setEditingHost(h=>({...h,timezone:e.target.value}))}>{[...new Set([editingHost.timezone,'America/Los_Angeles','America/Denver','America/Chicago','America/New_York','America/Phoenix','Pacific/Honolulu','America/Anchorage','UTC'])].map(z=><option key={z} value={z}>{z.replaceAll('_',' ')}</option>)}</select></label>
+        <label>Personal subscription<select value={editingHost.plan} onChange={e=>setEditingHost(h=>({...h,plan:e.target.value}))}><option value="basic">Basic</option><option value="plus">Plus</option><option value="pro">Pro</option></select></label>
+        <div className="ac-host-actions"><button className="mc-action" disabled={busy}>{busy?'Saving…':'Save changes'}</button><button type="button" className="rc-button" disabled={busy} onClick={()=>setEditingHost(null)}>Close editor</button></div>
+      </form>}
+      {cancellingHost&&<div className="ac-host-confirm" role="group" aria-label="Confirm cancel request">
+        <strong>Cancel the pending request for {cancellingHost.name}?</strong>
+        <p>The request will remain in history as Cancelled. No billing or Iotum action will occur.</p>
+        <div className="ac-host-actions"><button type="button" className="rc-button" disabled={busy} onClick={cancelHost}>{busy?'Cancelling…':'Confirm cancellation'}</button><button type="button" className="rc-button" disabled={busy} onClick={()=>setCancellingHost(null)}>Keep request</button></div>
+      </div>}
+      <div className="ac-table" role="region" aria-label="Pending host requests" tabIndex={0}>
+        <table className="app-data-table ac-filterable-table">
+          <caption>{filteredHosts.length} of {drafts.length} host requests match your filters</caption>
+          <thead><tr>{hostColumns.map(([key,label])=><th scope="col" key={key}>{label}</th>)}<th scope="col">Actions</th></tr>
+            <tr className="ac-column-filters">{hostColumns.map(([key,label])=><th key={key}><label className="rlc-sr-only" htmlFor={'ac-host-filter-'+key}>Search {label}</label><input id={'ac-host-filter-'+key} type="search" value={hostFilters[key]} onChange={e=>hostFilter(key,e.target.value)} placeholder={'Search '+label.toLowerCase()}/></th>)}<th><button type="button" className="rc-button" onClick={()=>{setHostFilters({name:'',email:'',department:'',jobTitle:'',plan:'',status:''});setPendingPage(1);}}>Clear</button></th></tr>
+          </thead>
+          <tbody>{visibleDrafts.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td>{d.email}</td><td>{d.departmentName||'Unassigned'}</td><td>{d.jobTitle||'—'}</td><td>{d.plan.toUpperCase()}</td><td>{d.status==='cancelled'?'Cancelled':'Pending billing'}</td><td className="ac-host-row-actions">{d.status!=='cancelled'?<><button type="button" className="rc-button" title={'Edit '+d.name} aria-label={'Edit '+d.name} onClick={()=>{setEditingHost({...d});setCancellingHost(null);setError('');}}>✎</button><button type="button" className="rc-button" title={'Cancel request for '+d.name} aria-label={'Cancel request for '+d.name} onClick={()=>{setCancellingHost(d);setEditingHost(null);setError('');}}>✕</button></>:<span>—</span>}</td></tr>)}{!filteredHosts.length&&<tr><td colSpan={7}>No host requests match the current filters.</td></tr>}</tbody>
+        </table>
+      </div>
       <div className="ac-table-pagination" aria-label="Pending host result pages">
         <label htmlFor="ac-pending-page-size">Rows per page <select id="ac-pending-page-size" value={pendingPageSize} onChange={e=>{setPendingPageSize(Number(e.target.value));setPendingPage(1);}}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
-        <span aria-live="polite">{drafts.length?pendingStart+1:0}–{Math.min(pendingStart+pendingPageSize,drafts.length)} of {drafts.length} results · Page {currentPendingPage} of {pendingPageCount}</span>
+        <span aria-live="polite">{filteredHosts.length?pendingStart+1:0}–{Math.min(pendingStart+pendingPageSize,filteredHosts.length)} of {filteredHosts.length} results · Page {currentPendingPage} of {pendingPageCount}</span>
         <nav aria-label="Pending host pagination">
           <button type="button" className="rc-button" disabled={currentPendingPage===1} onClick={()=>setPendingPage(1)} aria-label="First page">«</button>
           <button type="button" className="rc-button" disabled={currentPendingPage===1} onClick={()=>setPendingPage(p=>Math.max(1,p-1))}>Previous</button>
