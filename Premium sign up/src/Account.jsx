@@ -134,7 +134,7 @@ function CreateHostAdmin({workspaceId,request}) {
     }catch(e){setError(e.message);}finally{setAddingDepartment(false);}
   }
   function field(key,value){setDetails(d=>({...d,[key]:value}));setError('');}
-  function next(e){e.preventDefault();if(!details.name.trim()||!details.email.trim())return;setStep(2);}
+  function next(e){e.preventDefault();if(showNewDepartment){setError('Save or cancel the new department before continuing.');return;}if(!details.name.trim()||!details.email.trim())return;setStep(2);}
   async function save(){
     if(busy)return;setBusy(true);setError('');setNotice('');
     try{
@@ -159,7 +159,7 @@ function CreateHostAdmin({workspaceId,request}) {
         <label>Phone number (optional)<input type="tel" maxLength={40} value={details.phone} onChange={e=>field('phone',e.target.value)} placeholder="Phone number"/></label>
         <label>Job title (optional)<input maxLength={120} value={details.jobTitle} onChange={e=>field('jobTitle',e.target.value)} placeholder="e.g., Program Director"/></label>
         <label>Department (optional)<select value={showNewDepartment?'__add_new__':details.departmentId} onChange={e=>{if(e.target.value==='__add_new__'){setShowNewDepartment(true);setError('');}else{setShowNewDepartment(false);setNewDepartment('');field('departmentId',e.target.value);}}} disabled={addingDepartment}><option value="">No department assigned</option>{departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}<option value="__add_new__">+ Add New Department…</option></select></label>
-        {showNewDepartment&&<div className="ac-inline-department"><label htmlFor="ac-new-host-department">New department name</label><div><input id="ac-new-host-department" maxLength={80} value={newDepartment} onChange={e=>setNewDepartment(e.target.value)} placeholder="Enter department name" disabled={addingDepartment}/><button type="button" className="rc-button" disabled={addingDepartment||!newDepartment.trim()} onClick={addDepartment}>{addingDepartment?'Saving…':'Save department'}</button><button type="button" className="rc-button" disabled={addingDepartment} onClick={()=>{setShowNewDepartment(false);setNewDepartment('');}}>Cancel</button></div></div>}
+        {showNewDepartment&&<div className="ac-inline-department"><label htmlFor="ac-new-host-department">New department name</label><div><input id="ac-new-host-department" maxLength={80} value={newDepartment} onChange={e=>setNewDepartment(e.target.value)} placeholder="Enter department name" disabled={addingDepartment} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addDepartment(e);}}}/><button type="button" className="rc-button" disabled={addingDepartment||!newDepartment.trim()} onClick={addDepartment}>{addingDepartment?'Saving…':'Save department'}</button><button type="button" className="rc-button" disabled={addingDepartment} onClick={()=>{setShowNewDepartment(false);setNewDepartment('');}}>Cancel</button></div></div>}
         <p className="ac-note">Choose an existing department, add a new one from the dropdown, or leave unassigned.</p>
         <label>Time zone *<select required value={details.timezone} onChange={e=>field('timezone',e.target.value)}>{[...new Set([details.timezone,'America/Los_Angeles','America/Denver','America/Chicago','America/New_York','America/Phoenix','Pacific/Honolulu','America/Anchorage','UTC'])].map(z=><option key={z} value={z}>{z.replaceAll('_',' ')}</option>)}</select></label>
         <button type="submit" className="mc-action">Continue to plan selection</button>
