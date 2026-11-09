@@ -113,16 +113,13 @@ function OrganizationMembersTable({members}) {
 }
 
 
-function CreateHostAdmin({workspaceId,request}) {
+function CreateHostAdmin({workspaceId,request,onNavigateRequests}) {
   const initial={name:'',email:'',phone:'',jobTitle:'',departmentId:'',timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'America/Los_Angeles',plan:'basic'};
-  const [details,setDetails]=useState(initial),[step,setStep]=useState(1),[departments,setDepartments]=useState([]),[drafts,setDrafts]=useState([]);
-  const [pendingPageSize,setPendingPageSize]=useState(10),[pendingPage,setPendingPage]=useState(1);
-  const [hostFilters,setHostFilters]=useState({name:'',email:'',department:'',jobTitle:'',plan:'',status:''});
-  const [editingHost,setEditingHost]=useState(null),[cancellingHost,setCancellingHost]=useState(null),[restoringHost,setRestoringHost]=useState(null);
+  const [details,setDetails]=useState(initial),[step,setStep]=useState(1),[departments,setDepartments]=useState([]);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[newDepartment,setNewDepartment]=useState(''),[addingDepartment,setAddingDepartment]=useState(false),[showNewDepartment,setShowNewDepartment]=useState(false);
   const base='/api/workspaces/'+encodeURIComponent(workspaceId);
   useEffect(()=>{let live=true;setLoading(true);setError('');
-    Promise.all([request(base+'/departments'),request(base+'/pending-hosts')]).then(([d,h])=>{if(live){setDepartments(d.departments);setDrafts(h.hosts);}}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setLoading(false);});
+    request(base+'/departments').then(d=>{if(live)setDepartments(d.departments);}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setLoading(false);});
     return()=>{live=false;};
   },[base,request]);
   async function addDepartment(e){
@@ -141,14 +138,47 @@ function CreateHostAdmin({workspaceId,request}) {
     if(busy)return;setBusy(true);setError('');setNotice('');
     try{
       await request(base+'/pending-hosts',{method:'POST',body:JSON.stringify(details)});
-      const fresh=await request(base+'/pending-hosts');
-      setDrafts(fresh.hosts);
       setNotice('Host saved and confirmed in Pending Host Requests. No payment was collected and no invitation or Iotum account was created.');
       setDetails(initial);setStep(1);
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
+  return <section className="ac-host-admin">
+    <p className="ac-note">Create a personal Basic, Plus, or Pro host subscription independently of shared rooms. This development form saves a pending request only; billing, invitations and Iotum activation are not connected.</p>
+    {loading?<p role="status">Loading host setup…</p>:<>
+      <div className="ac-host-steps" aria-label="Host registration steps"><span aria-current={step===1?'step':undefined}>1. Host details</span><span aria-current={step===2?'step':undefined}>2. Select plan</span><span aria-current={step===3?'step':undefined}>3. Review</span></div>
+      {step===1&&<form className="ac-host-form" onSubmit={next}>
+        <label>Full name *<input required maxLength={200} value={details.name} onChange={e=>field('name',e.target.value)} autoComplete="off"/></label>
+        <label>Email address *<input required type="email" maxLength={254} value={details.email} onChange={e=>field('email',e.target.value)} autoComplete="off"/></label>
+        <label>Phone number (optional)<input type="tel" maxLength={40} value={details.phone} onChange={e=>field('phone',e.target.value)} placeholder="Phone number"/></label>
+        <label>Job title (optional)<input maxLength={120} value={details.jobTitle} onChange={e=>field('jobTitle',e.target.value)} placeholder="e.g., Program Director"/></label>
+        <label>Department (optional)<select value={showNewDepartment?'__add_new__':details.departmentId} onChange={e=>{if(e.target.value==='__add_new__'){setShowNewDepartment(true);setError('');}else{setShowNewDepartment(false);setNewDepartment('');field('departmentId',e.target.value);}}} disabled={addingDepartment}><option value="">No department assigned</option>{departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}<option value="__add_new__">+ Add New Department…</option></select></label>
+        {showNewDepartment&&<div className="ac-inline-department"><label htmlFor="ac-new-host-department">New department name</label><div><input id="ac-new-host-department" maxLength={80} value={newDepartment} onChange={e=>setNewDepartment(e.target.value)} placeholder="Enter department name" disabled={addingDepartment} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addDepartment(e);}}}/><button type="button" className="rc-button" disabled={addingDepartment||!newDepartment.trim()} onClick={addDepartment}>{addingDepartment?'Saving…':'Save department'}</button><button type="button" className="rc-button" disabled={addingDepartment} onClick={()=>{setShowNewDepartment(false);setNewDepartment('');}}>Cancel</button></div></div>}
+        <p className="ac-note">Choose an existing department, add a new one from the dropdown, or leave unassigned.</p>
+        <label>Time zone *<select required value={details.timezone} onChange={e=>field('timezone',e.target.value)}>{[...new Set([details.timezone,'America/Los_Angeles','America/Denver','America/Chicago','America/New_York','America/Phoenix','Pacific/Honolulu','America/Anchorage','UTC'])].map(z=><option key={z} value={z}>{z.replaceAll('_',' ')}</option>)}</select></label>
+        <button type="submit" className="mc-action">Continue to plan selection</button>
+      </form>}
+      {step===2&&<div className="ac-host-form"><h3>Select personal host subscription</h3><fieldset><legend>Subscription plan</legend>{[['basic','Basic'],['plus','Plus'],['pro','Pro']].map(([value,label])=><label key={value} className="ac-host-plan"><input type="radio" name="host-plan" checked={details.plan===value} onChange={()=>field('plan',value)}/>{label}</label>)}</fieldset><p className="ac-note">A shared room is not required. Pricing and payment will be presented when billing integration is available.</p><div className="ac-host-actions"><button type="button" className="rc-button" onClick={()=>setStep(1)}>Back</button><button type="button" className="mc-action" onClick={()=>setStep(3)}>Review host</button></div></div>}
+      {step===3&&<div className="ac-host-form"><h3>Review host request</h3><dl><dt>Host</dt><dd>{details.name}</dd><dt>Email</dt><dd>{details.email}</dd><dt>Phone</dt><dd>{details.phone||'Not provided'}</dd><dt>Job title</dt><dd>{details.jobTitle||'Not provided'}</dd><dt>Department</dt><dd>{departments.find(d=>d.id===details.departmentId)?.name||'Unassigned'}</dd><dt>Time zone</dt><dd>{details.timezone}</dd><dt>Personal plan</dt><dd>{details.plan.toUpperCase()}</dd><dt>Initial status</dt><dd>Pending billing — no activation</dd></dl><div className="ac-host-actions"><button type="button" className="rc-button" disabled={busy} onClick={()=>setStep(2)}>Back</button><button type="button" className="mc-action" disabled={busy} onClick={save}>{busy?'Saving…':'Save pending host'}</button></div></div>}
+      {error&&<p role="alert" className="ac-error">{error}</p>}{notice&&<p role="status">{notice}</p>}
+      <button type="button" className="rc-button" onClick={onNavigateRequests}>View Pending Host Requests</button>
+    </>}
+  </section>;
+}
+
+function PendingHostRequestsAdmin({workspaceId,request}) {
+  const [departments,setDepartments]=useState([]),[drafts,setDrafts]=useState([]);
+  const [pendingPageSize,setPendingPageSize]=useState(10),[pendingPage,setPendingPage]=useState(1);
+  const [hostFilters,setHostFilters]=useState({name:'',email:'',department:'',jobTitle:'',plan:'',status:''});
+  const [editingHost,setEditingHost]=useState(null),[cancellingHost,setCancellingHost]=useState(null),[restoringHost,setRestoringHost]=useState(null);
+  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const [showCancelled,setShowCancelled]=useState(false);
+  const base='/api/workspaces/'+encodeURIComponent(workspaceId);
+  useEffect(()=>{let live=true;setLoading(true);Promise.all([request(base+'/departments'),request(base+'/pending-hosts')])
+    .then(([d,h])=>{if(live){setDepartments(d.departments);setDrafts(h.hosts);}}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setLoading(false);});
+    return()=>{live=false;};
+  },[base,request]);
   const hostColumns=[['name','Name'],['email','Email'],['department','Department'],['jobTitle','Job title'],['plan','Plan'],['status','Status']];
-  const filteredHosts=drafts.filter(d=>hostColumns.every(([key])=>{
+  const filteredHosts=drafts.filter(d=>(showCancelled||d.status!=='cancelled')&&hostColumns.every(([key])=>{
     const value=key==='department'?d.departmentName||'Unassigned':key==='status'?d.status==='cancelled'?'Cancelled':'Pending billing':key==='jobTitle'?d.jobTitle||'':d[key]||'';
     return String(value).toLocaleLowerCase().includes(hostFilters[key].trim().toLocaleLowerCase());
   }));
@@ -182,25 +212,13 @@ function CreateHostAdmin({workspaceId,request}) {
   const currentPendingPage=Math.min(pendingPage,pendingPageCount);
   const pendingStart=(currentPendingPage-1)*pendingPageSize;
   const visibleDrafts=filteredHosts.slice(pendingStart,pendingStart+pendingPageSize);
-  return <section className="ac-host-admin">
-    <p className="ac-note">Create a personal Basic, Plus, or Pro host subscription independently of shared rooms. This development form saves a pending request only; billing, invitations and Iotum activation are not connected.</p>
-    {loading?<p role="status">Loading host setup…</p>:<>
-      <div className="ac-host-steps" aria-label="Host registration steps"><span aria-current={step===1?'step':undefined}>1. Host details</span><span aria-current={step===2?'step':undefined}>2. Select plan</span><span aria-current={step===3?'step':undefined}>3. Review</span></div>
-      {step===1&&<form className="ac-host-form" onSubmit={next}>
-        <label>Full name *<input required maxLength={200} value={details.name} onChange={e=>field('name',e.target.value)} autoComplete="off"/></label>
-        <label>Email address *<input required type="email" maxLength={254} value={details.email} onChange={e=>field('email',e.target.value)} autoComplete="off"/></label>
-        <label>Phone number (optional)<input type="tel" maxLength={40} value={details.phone} onChange={e=>field('phone',e.target.value)} placeholder="Phone number"/></label>
-        <label>Job title (optional)<input maxLength={120} value={details.jobTitle} onChange={e=>field('jobTitle',e.target.value)} placeholder="e.g., Program Director"/></label>
-        <label>Department (optional)<select value={showNewDepartment?'__add_new__':details.departmentId} onChange={e=>{if(e.target.value==='__add_new__'){setShowNewDepartment(true);setError('');}else{setShowNewDepartment(false);setNewDepartment('');field('departmentId',e.target.value);}}} disabled={addingDepartment}><option value="">No department assigned</option>{departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}<option value="__add_new__">+ Add New Department…</option></select></label>
-        {showNewDepartment&&<div className="ac-inline-department"><label htmlFor="ac-new-host-department">New department name</label><div><input id="ac-new-host-department" maxLength={80} value={newDepartment} onChange={e=>setNewDepartment(e.target.value)} placeholder="Enter department name" disabled={addingDepartment} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addDepartment(e);}}}/><button type="button" className="rc-button" disabled={addingDepartment||!newDepartment.trim()} onClick={addDepartment}>{addingDepartment?'Saving…':'Save department'}</button><button type="button" className="rc-button" disabled={addingDepartment} onClick={()=>{setShowNewDepartment(false);setNewDepartment('');}}>Cancel</button></div></div>}
-        <p className="ac-note">Choose an existing department, add a new one from the dropdown, or leave unassigned.</p>
-        <label>Time zone *<select required value={details.timezone} onChange={e=>field('timezone',e.target.value)}>{[...new Set([details.timezone,'America/Los_Angeles','America/Denver','America/Chicago','America/New_York','America/Phoenix','Pacific/Honolulu','America/Anchorage','UTC'])].map(z=><option key={z} value={z}>{z.replaceAll('_',' ')}</option>)}</select></label>
-        <button type="submit" className="mc-action">Continue to plan selection</button>
-      </form>}
-      {step===2&&<div className="ac-host-form"><h3>Select personal host subscription</h3><fieldset><legend>Subscription plan</legend>{[['basic','Basic'],['plus','Plus'],['pro','Pro']].map(([value,label])=><label key={value} className="ac-host-plan"><input type="radio" name="host-plan" checked={details.plan===value} onChange={()=>field('plan',value)}/>{label}</label>)}</fieldset><p className="ac-note">A shared room is not required. Pricing and payment will be presented when billing integration is available.</p><div className="ac-host-actions"><button type="button" className="rc-button" onClick={()=>setStep(1)}>Back</button><button type="button" className="mc-action" onClick={()=>setStep(3)}>Review host</button></div></div>}
-      {step===3&&<div className="ac-host-form"><h3>Review host request</h3><dl><dt>Host</dt><dd>{details.name}</dd><dt>Email</dt><dd>{details.email}</dd><dt>Phone</dt><dd>{details.phone||'Not provided'}</dd><dt>Job title</dt><dd>{details.jobTitle||'Not provided'}</dd><dt>Department</dt><dd>{departments.find(d=>d.id===details.departmentId)?.name||'Unassigned'}</dd><dt>Time zone</dt><dd>{details.timezone}</dd><dt>Personal plan</dt><dd>{details.plan.toUpperCase()}</dd><dt>Initial status</dt><dd>Pending billing — no activation</dd></dl><div className="ac-host-actions"><button type="button" className="rc-button" disabled={busy} onClick={()=>setStep(2)}>Back</button><button type="button" className="mc-action" disabled={busy} onClick={save}>{busy?'Saving…':'Save pending host'}</button></div></div>}
-      {error&&<p role="alert" className="ac-error">{error}</p>}{notice&&<p role="status">{notice}</p>}
-      <h3>Pending host requests</h3>
+
+  return <section className="ac-host-requests-admin">
+    <p className="ac-note">Manage pending host subscriptions. Cancelled requests are retained and can be restored when needed.</p>
+    <label className="ac-host-show-cancelled"><input type="checkbox" checked={showCancelled} onChange={e=>{setShowCancelled(e.target.checked);setPendingPage(1);}}/> Show cancelled requests</label>
+    {error&&<p role="alert" className="ac-error">{error}</p>}{notice&&<p role="status">{notice}</p>}
+    {loading?<p role="status">Loading host requests…</p>:<>
+
       {editingHost&&<form className="ac-host-form ac-host-edit" onSubmit={updateHost}>
         <h4>Edit pending host: {editingHost.name}</h4>
         <label>Full name<input required maxLength={200} value={editingHost.name} onChange={e=>setEditingHost(h=>({...h,name:e.target.value}))}/></label>
@@ -222,7 +240,7 @@ function CreateHostAdmin({workspaceId,request}) {
         <p>The request will return to Pending Billing. No payment, invitation or Iotum activation will occur.</p>
         <div className="ac-host-actions"><button type="button" className="rc-button" disabled={busy} onClick={restoreHost}>{busy?'Restoring…':'Confirm restoration'}</button><button type="button" className="rc-button" disabled={busy} onClick={()=>setRestoringHost(null)}>Keep cancelled</button></div>
       </div>}
-      <div className="ac-table" role="region" aria-label="Pending host requests" tabIndex={0}>
+      <div className="ac-host-table-wrap" role="region" aria-label="Pending host requests">
         <table className="app-data-table ac-filterable-table">
           <caption>{filteredHosts.length} of {drafts.length} host requests match your filters</caption>
           <thead><tr>{hostColumns.map(([key,label])=><th scope="col" key={key}>{label}</th>)}<th scope="col">Actions</th></tr>
@@ -249,14 +267,14 @@ function CreateHostAdmin({workspaceId,request}) {
 export function Dashboard({ onSignedOut, user:sessionUser }) {
   const [data, setData] = useState(null), [error, setError] = useState(''), [workspace, setWorkspace] = useState('');
   const [tab,setTab]=useState(accountSection);
-  const [adminSection,setAdminSection]=useState(()=>window.location.hash.includes('view=hosts')?'hosts':window.location.hash.includes('view=departments')?'departments':window.location.hash.includes('view=rooms')?'rooms':'members');
+  const [adminSection,setAdminSection]=useState(()=>window.location.hash.includes('view=requests')?'requests':window.location.hash.includes('view=hosts')?'hosts':window.location.hash.includes('view=departments')?'departments':window.location.hash.includes('view=rooms')?'rooms':'members');
   const [mobileOpen,setMobileOpen]=useState(false);
   const mobileDialog=useRef(null),menuButton=useRef(null),content=useRef(null),pageHeading=useRef(null);
   const [admin, setAdmin] = useState(null), [adminError, setAdminError] = useState('');
   const [reload, setReload] = useState(0);
   const [openingMeetings, setOpeningMeetings] = useState(false), [meetingError, setMeetingError] = useState('');
   useEffect(()=>{
-    function navigate(){setTab(accountSection());setAdminSection(window.location.hash.includes('view=hosts')?'hosts':window.location.hash.includes('view=departments')?'departments':window.location.hash.includes('view=rooms')?'rooms':'members');setMobileOpen(false);}
+    function navigate(){setTab(accountSection());setAdminSection(window.location.hash.includes('view=requests')?'requests':window.location.hash.includes('view=hosts')?'hosts':window.location.hash.includes('view=departments')?'departments':window.location.hash.includes('view=rooms')?'rooms':'members');setMobileOpen(false);}
     window.addEventListener('hashchange',navigate);return()=>window.removeEventListener('hashchange',navigate);
   },[]);
   useEffect(()=>{
@@ -317,7 +335,7 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
     return <><a className="ac-app-brand" href="#account?meetings" onClick={e=>{e.preventDefault();go('meetings');}}><img src={`${import.meta.env.BASE_URL}real-life-connect-logo.png`} alt="Real Life Connect workspace"/><span>WORKSPACE</span></a>
       <div className="ac-workspace-name"><small>{data?.workspace.kind==='personal'?'PERSONAL ACCOUNT':'ORGANIZATION'}</small><strong>{data?.workspace.name||'Your workspace'}</strong></div>
       <nav className="ac-side-nav" aria-label="Workspace navigation"><div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="meetings"/><span>Host Admin</span></h2><div className="ac-side-subnav">{['meetings','rooms','profile'].map(key=><a key={key} href={'#account?'+key} aria-current={tab===key?'page':undefined} onClick={e=>{e.preventDefault();go(key);}}>{labels[key]}</a>)}</div></div>
-        {isAdmin&&<div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="admin"/><span>Organization Admin</span></h2><div className="ac-side-subnav"><a href="#account?admin" aria-current={tab==='admin'&&adminSection==='members'?'page':undefined} onClick={e=>{e.preventDefault();go('admin');}}>Members</a><a href="#account?admin&view=hosts" aria-current={tab==='admin'&&adminSection==='hosts'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','hosts');}}>Create New Host</a><a href="#account?admin&view=departments" aria-current={tab==='admin'&&adminSection==='departments'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','departments');}}>Departments</a><a href="#account?admin&view=rooms" aria-current={tab==='admin'&&adminSection==='rooms'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','rooms');}}>Shared room settings</a></div></div>}
+        {isAdmin&&<div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="admin"/><span>Organization Admin</span></h2><div className="ac-side-subnav"><a href="#account?admin" aria-current={tab==='admin'&&adminSection==='members'?'page':undefined} onClick={e=>{e.preventDefault();go('admin');}}>Members</a><a href="#account?admin&view=hosts" aria-current={tab==='admin'&&adminSection==='hosts'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','hosts');}}>Create New Host</a><a href="#account?admin&view=requests" aria-current={tab==='admin'&&adminSection==='requests'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','requests');}}>Pending Host Requests</a><a href="#account?admin&view=departments" aria-current={tab==='admin'&&adminSection==='departments'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','departments');}}>Departments</a><a href="#account?admin&view=rooms" aria-current={tab==='admin'&&adminSection==='rooms'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','rooms');}}>Shared room settings</a></div></div>}
       </nav><div className="ac-side-bottom"><a href="#home" onClick={()=>setMobileOpen(false)}>← Public website</a><div><span className="ac-avatar" aria-hidden="true">{(currentUser?.name||'RL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span><p><strong>{currentUser?.name||'Your account'}</strong><small>{data?.workspace.kind==='personal'?'Personal account':isAdmin?'Organization administrator':'Member'}</small></p></div></div></>;
   }
   return <div className="ac-app">
@@ -330,8 +348,8 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
     {tab==='meetings' && <div className="ac-panel"><h2>Your Personal Meeting Space</h2>{data.personalMeeting.provisioned ? <><p className="ac-plan">Plan: <strong>{plans.find(p=>p.code===data.personalMeeting.plan)?.name || 'Meeting account'}</strong></p><div className="ac-meeting-actions"><article><h3>Manage Meetings</h3><p>Schedule meetings, view upcoming sessions, and access your meeting history and recordings.</p><button className="mc-action" type="button" disabled={openingMeetings} onClick={openMeetings}>{openingMeetings ? "Opening meetings…" : "Open My Meetings ↗"}</button></article>{data.personalMeeting.meetingUrl && <article><h3>Your Meeting Room</h3><p>Open your personal room. Sign in to host, or share this room link with your guests.</p><a className="mc-action mc-action-secondary" href={data.personalMeeting.meetingUrl} target="_blank" rel="noopener noreferrer">Open Room Link ↗</a></article>}</div>{meetingError && <p className="ac-error" role="alert">{meetingError}</p>}<p className="ac-note">Your meeting dashboard opens in a new tab.</p></> : <p>Your personal meeting space is awaiting activation.</p>}</div>}
     {tab==='rooms' && <div className="ac-panel"><RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} canManage={false}/></div>}
     {tab==='profile' && <div className="ac-panel"><h2>My account</h2><dl><dt>Name</dt><dd>{data.user.name}</dd><dt>Email</dt><dd>{data.user.email}</dd><dt>Workspace permission</dt><dd>{data.workspace.role==='admin'?'Administrator':'Member'}</dd><dt>Payment status</dt><dd>{data.user.status==='pending_payment'?'Pending payment':data.user.status}</dd></dl></div>}
-    {tab==='admin'&&isAdmin&&<section className="ac-panel ac-admin-panel"><header className="ac-section-header"><div><p className="ac-plan">{data.workspace.name}</p><h2>{adminSection==='members'?'Organization members':adminSection==='hosts'?'Create New Host':adminSection==='departments'?'Departments':'Shared room settings'}</h2></div><nav className="ac-admin-switch" aria-label="Organization sections"><button aria-pressed={adminSection==='members'} onClick={()=>go('admin')}>Members</button><button aria-pressed={adminSection==='hosts'} onClick={()=>go('admin','hosts')}>Create Host</button><button aria-pressed={adminSection==='departments'} onClick={()=>go('admin','departments')}>Departments</button><button aria-pressed={adminSection==='rooms'} onClick={()=>go('admin','rooms')}>Shared rooms</button></nav></header>
-      {adminSection==='hosts'?<CreateHostAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='departments'?<DepartmentsAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='rooms'?<RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} administration/>:adminError?<p role="alert" className="ac-error">{adminError}</p>:!admin?<p role="status">Loading organization…</p>:<OrganizationMembersTable members={admin.members}/>}
+    {tab==='admin'&&isAdmin&&<section className="ac-panel ac-admin-panel"><header className="ac-section-header"><div><p className="ac-plan">{data.workspace.name}</p><h2>{adminSection==='members'?'Organization members':adminSection==='hosts'?'Create New Host':adminSection==='requests'?'Pending Host Requests':adminSection==='departments'?'Departments':'Shared room settings'}</h2></div><nav className="ac-admin-switch" aria-label="Organization sections"><button aria-pressed={adminSection==='members'} onClick={()=>go('admin')}>Members</button><button aria-pressed={adminSection==='hosts'} onClick={()=>go('admin','hosts')}>Create Host</button><button aria-pressed={adminSection==='requests'} onClick={()=>go('admin','requests')}>Pending requests</button><button aria-pressed={adminSection==='departments'} onClick={()=>go('admin','departments')}>Departments</button><button aria-pressed={adminSection==='rooms'} onClick={()=>go('admin','rooms')}>Shared rooms</button></nav></header>
+      {adminSection==='hosts'?<CreateHostAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} onNavigateRequests={()=>go('admin','requests')}/>:adminSection==='requests'?<PendingHostRequestsAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='departments'?<DepartmentsAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='rooms'?<RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} administration/>:adminError?<p role="alert" className="ac-error">{adminError}</p>:!admin?<p role="status">Loading organization…</p>:<OrganizationMembersTable members={admin.members}/>}
     </section>}
     </>}
     </main><footer className="ac-app-footer">Real Life Connect · Real Life Systems, LLC</footer></div>
