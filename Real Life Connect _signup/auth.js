@@ -134,6 +134,34 @@ function installAccountRoutes(app, store, options = {}) {
     }catch(error){if(/UNIQUE constraint failed/.test(error.message))return res.status(409).send('This host email already has a pending request in this organization.');throw error;}
     res.status(201).json({id,name:n,email:e,plan,status:'pending_billing',message:'Host draft saved. No payment, invitation or Iotum host was created.'});
   });
+  // Pending requests may be edited or canceled without provider activation or payment.
+  app.put('/api/workspaces/:id/pending-hosts/:hostId',protectedMutation,signedIn,workspace,(req,res)=>{
+    if(req.workspace.kind!=='organization'||req.workspace.role!=='admin') return res.status(403).send('Organization administrator access is required.');
+    const original=db.prepare('SELECT * FROM pending_hosts WHERE id=? AND organization_id=?').get(req.params.hostId,req.workspace.id);
+    if(!original)return res.status(404).send('Host request not found.');
+    if(original.status!=='pending_billing')return res.status(409).send('Canceled requests cannot be edited.');
+    const input=req.body;
+    if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['name','email','phone','jobTitle','departmentId','timezone','plan'].includes(k)))return res.status(400).send('Invalid host details.');
+    const {name,email,phone='',jobTitle='',departmentId='',timezone,plan}=input;
+    if([name,email,phone,jobTitle,departmentId,timezone,plan].some(v=>typeof v!=='string'))return res.status(400).send('Invalid host details.');
+    const n=name.trim(),e=email.trim().toLowerCase(),p=phone.trim(),job=jobTitle.trim(),tz=timezone.trim();
+    if(!n||n.length>200||!e||e.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(e)||p.length>40||job.length>120||!['basic','plus','pro'].includes(plan))return res.status(400).send('Check the host name, email, phone, job title and plan.');
+    if(!tz||tz.length>80)return res.status(400).send('Select a valid time zone.');
+    try{new Intl.DateTimeFormat('en-US',{timeZone:tz});}catch{return res.status(400).send('Select a valid time zone.');}
+    if(departmentId&&!db.prepare('SELECT 1 FROM departments WHERE id=? AND organization_id=?').get(departmentId,req.workspace.id))return res.status(400).send('Department is not part of this organization.');
+    if(e!==original.email&&db.prepare('SELECT 1 FROM users WHERE email=?').get(e))return res.status(409).send('Email belongs to an existing user.');
+    try{
+      db.prepare(`UPDATE pending_hosts SET name=?,email=?,phone=?,job_title=?,department_id=?,timezone=?,plan=?
+      WHERE id=? AND organization_id=? AND status='pending_billing'`).run(n,e,p,job,departmentId||null,tz,plan,req.params.hostId,req.workspace.id);
+    }catch(error){if(/UNIQUE constraint failed/.test(error.message))return res.status(409).send('Another pending host has this email.');throw error;}
+    res.json({updated:true});
+  });
+  app.post('/api/workspaces/:id/pending-hosts/:hostId/cancel',protectedMutation,signedIn,workspace,(req,res)=>{
+    if(req.workspace.kind!=='organization'||req.workspace.role!=='admin')return res.status(403).send('Organization administrator access is required.');
+    const result=db.prepare("UPDATE pending_hosts SET status='cancelled' WHERE id=? AND organization_id=? AND status='pending_billing'").run(req.params.hostId,req.workspace.id);
+    if(!result.changes)return res.status(404).send('Active pending host request not found.');
+    res.json({cancelled:true});
+  });
   app.get('/api/workspaces/:id/admin', signedIn, workspace, (req, res) => {
     if (req.workspace.role !== 'admin') return res.status(403).send('Organization administrator access is required.');
     const members = db.prepare(`SELECT u.id, u.name, u.email, u.status, m.role, m.department_id AS departmentId, d.name AS departmentName FROM memberships m JOIN users u ON u.id = m.user_id LEFT JOIN departments d ON d.id=m.department_id AND d.organization_id=m.organization_id WHERE m.organization_id = ? ORDER BY u.name`).all(req.workspace.id);
