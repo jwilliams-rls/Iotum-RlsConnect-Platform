@@ -17,3 +17,9 @@
 .ac-department-form label{font-weight:600;font-size:13px;flex-basis:100%;margin:0}
 .ac-department-form input{padding:12px;border:1px solid #9ba7b9;border-radius:5px;font:inherit;flex:1 1 240px;min-width:0}
 .ac-department-form .mc-action{margin:0}
+
+/* Per-column combined member search */
+.ac-filterable-table .ac-column-filters th{padding:8px;background:#f6f8fc;vertical-align:middle}
+.ac-filterable-table .ac-column-filters input{box-sizing:border-box;width:100%;min-width:115px;padding:9px 8px;border:1px solid #9ba7b9;border-radius:5px;background:white;color:#16233f;font:inherit;font-size:12px;font-weight:400}
+.ac-filterable-table .ac-column-filters input:focus-visible{outline:2px solid #ff5f00;outline-offset:1px}
+.ac-member-search>.rc-button{margin-top:14px}
