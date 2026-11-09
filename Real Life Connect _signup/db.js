@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 14) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 15) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -274,6 +274,27 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
       PRAGMA user_version = 14;
       COMMIT;`);
   }
+  if (version < 15) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE pending_hosts (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200),
+        email TEXT NOT NULL COLLATE NOCASE,
+        phone TEXT NOT NULL DEFAULT '' CHECK(length(phone) <= 40),
+        job_title TEXT NOT NULL DEFAULT '' CHECK(length(job_title) <= 120),
+        department_id TEXT,
+        timezone TEXT NOT NULL CHECK(length(timezone) BETWEEN 1 AND 80),
+        plan TEXT NOT NULL CHECK(plan IN ('basic','plus','pro')),
+        status TEXT NOT NULL DEFAULT 'pending_billing' CHECK(status IN ('pending_billing','cancelled')),
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(department_id,organization_id) REFERENCES departments(id,organization_id),
+        UNIQUE(organization_id,email)
+      ) STRICT;
+      CREATE INDEX pending_hosts_organization ON pending_hosts(organization_id,created_at);
+      PRAGMA user_version = 15;
+      COMMIT;`);
+  }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -287,7 +308,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
       db.prepare(`INSERT INTO users
         (id, organization_id, name, email, password_hash, role, created_at)
         VALUES (?, ?, ?, ?, ?, 'admin', ?)`).run(userId, orgId, adminName, adminEmail, passwordHash, now);
-      db.prepare("INSERT INTO memberships VALUES (?, ?, 'admin')").run(userId, orgId);
+      db.prepare("INSERT INTO memberships(user_id, organization_id, role) VALUES (?, ?, 'admin')").run(userId, orgId);
       db.exec("COMMIT");
       return { orgId, userId };
     } catch (error) {
