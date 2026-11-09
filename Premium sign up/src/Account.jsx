@@ -69,29 +69,49 @@ function DepartmentsAdmin({workspaceId,request}) {
 }
 
 function OrganizationMembersTable({members}) {
-  const [filters,setFilters]=useState({name:'',email:'',department:'',role:'',status:''});
+  const emptyFilters={name:'',email:'',department:'',role:'',status:''};
+  const [filters,setFilters]=useState(emptyFilters);
+  const [pageSize,setPageSize]=useState(10);
+  const [page,setPage]=useState(1);
   const fields=[['name','Name'],['email','Email'],['department','Department'],['role','Website role'],['status','Payment status']];
   const filtered=members.filter(m=>fields.every(([key])=>{
     const value=key==='department'?m.departmentName||'':m[key]||'';
     return String(value).toLocaleLowerCase().includes(filters[key].trim().toLocaleLowerCase());
   }));
-  const update=(key,value)=>setFilters(current=>({...current,[key]:value}));
+  const pageCount=Math.max(1,Math.ceil(filtered.length/pageSize));
+  const currentPage=Math.min(page,pageCount);
+  const startIndex=(currentPage-1)*pageSize;
+  const visible=filtered.slice(startIndex,startIndex+pageSize);
+  function update(key,value){setFilters(current=>({...current,[key]:value}));setPage(1);}
+  function clearFilters(){setFilters(emptyFilters);setPage(1);}
   return <section className="ac-member-search">
-    <p className="ac-note">Search by one or more columns. All filters apply to the entire table at the same time.</p>
+    <p className="ac-note">Search by one or more columns. The entire member list is filtered before results are divided into pages.</p>
     <div className="ac-table" role="region" aria-label="Organization members table" tabIndex={0}>
       <table className="app-data-table ac-filterable-table">
-        <caption>{filtered.length} of {members.length} organization members shown</caption>
+        <caption>{filtered.length} of {members.length} organization members match your filters</caption>
         <thead>
           <tr>{fields.map(([key,label])=><th scope="col" key={key}>{label}</th>)}</tr>
           <tr className="ac-column-filters">{fields.map(([key,label])=><th key={key}><label className="rlc-sr-only" htmlFor={'ac-filter-'+key}>Search {label}</label><input id={'ac-filter-'+key} type="search" value={filters[key]} onChange={e=>update(key,e.target.value)} placeholder={'Search '+label.toLowerCase()} autoComplete="off"/></th>)}</tr>
         </thead>
-        <tbody>{filtered.map(m=><tr key={m.id}><th scope="row">{m.name}</th><td>{m.email}</td><td>{m.departmentName||'Unassigned'}</td><td>{m.role}</td><td>{m.status}</td></tr>)}
-        {!filtered.length&&<tr><td colSpan={5}>No members match these filters. <button type="button" className="rc-button" onClick={()=>setFilters({name:'',email:'',department:'',role:'',status:''})}>Clear filters</button></td></tr>}</tbody>
+        <tbody>{visible.map(m=><tr key={m.id}><th scope="row">{m.name}</th><td>{m.email}</td><td>{m.departmentName||'Unassigned'}</td><td>{m.role}</td><td>{m.status}</td></tr>)}
+        {!filtered.length&&<tr><td colSpan={5}>No members match these filters. <button type="button" className="rc-button" onClick={clearFilters}>Clear filters</button></td></tr>}</tbody>
       </table>
     </div>
-    {Object.values(filters).some(Boolean)&&<button type="button" className="rc-button" onClick={()=>setFilters({name:'',email:'',department:'',role:'',status:''})}>Clear all filters</button>}
+    <div className="ac-table-pagination" aria-label="Member result pages">
+      <label htmlFor="ac-page-size">Rows per page <select id="ac-page-size" value={pageSize} onChange={e=>{setPageSize(Number(e.target.value));setPage(1);}}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
+      <span aria-live="polite">{filtered.length?startIndex+1:0}–{Math.min(startIndex+pageSize,filtered.length)} of {filtered.length} results · Page {currentPage} of {pageCount}</span>
+      <nav aria-label="Member result pagination">
+        <button type="button" className="rc-button" disabled={currentPage===1} onClick={()=>setPage(1)} aria-label="First page">«</button>
+        <button type="button" className="rc-button" disabled={currentPage===1} onClick={()=>setPage(n=>Math.max(1,n-1))}>Previous</button>
+        {Array.from({length:pageCount},(_,i)=>i+1).filter(n=>n===1||n===pageCount||Math.abs(n-currentPage)<=2).map((n,i,shown)=><span key={n} className="ac-page-item">{i>0&&n-shown[i-1]>1&&<span aria-hidden="true">…</span>}<button type="button" className="rc-button" aria-label={'Page '+n} aria-current={n===currentPage?'page':undefined} onClick={()=>setPage(n)}>{n}</button></span>)}
+        <button type="button" className="rc-button" disabled={currentPage===pageCount} onClick={()=>setPage(n=>Math.min(pageCount,n+1))}>Next</button>
+        <button type="button" className="rc-button" disabled={currentPage===pageCount} onClick={()=>setPage(pageCount)} aria-label="Last page">»</button>
+      </nav>
+    </div>
+    {Object.values(filters).some(Boolean)&&<button type="button" className="rc-button" onClick={clearFilters}>Clear all filters</button>}
   </section>;
 }
+
 export function Dashboard({ onSignedOut, user:sessionUser }) {
   const [data, setData] = useState(null), [error, setError] = useState(''), [workspace, setWorkspace] = useState('');
   const [tab,setTab]=useState(accountSection);
