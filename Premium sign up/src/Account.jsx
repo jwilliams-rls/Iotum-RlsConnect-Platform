@@ -116,6 +116,7 @@ function OrganizationMembersTable({members}) {
 function CreateHostAdmin({workspaceId,request,onDepartments}) {
   const initial={name:'',email:'',phone:'',jobTitle:'',departmentId:'',timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'America/Los_Angeles',plan:'basic'};
   const [details,setDetails]=useState(initial),[step,setStep]=useState(1),[departments,setDepartments]=useState([]),[drafts,setDrafts]=useState([]);
+  const [pendingPageSize,setPendingPageSize]=useState(10),[pendingPage,setPendingPage]=useState(1);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[newDepartment,setNewDepartment]=useState(''),[addingDepartment,setAddingDepartment]=useState(false);
   const base='/api/workspaces/'+encodeURIComponent(workspaceId);
   useEffect(()=>{let live=true;setLoading(true);setError('');
@@ -144,6 +145,10 @@ function CreateHostAdmin({workspaceId,request,onDepartments}) {
       setDetails(initial);setStep(1);
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
+  const pendingPageCount=Math.max(1,Math.ceil(drafts.length/pendingPageSize));
+  const currentPendingPage=Math.min(pendingPage,pendingPageCount);
+  const pendingStart=(currentPendingPage-1)*pendingPageSize;
+  const visibleDrafts=drafts.slice(pendingStart,pendingStart+pendingPageSize);
   return <section className="ac-host-admin">
     <p className="ac-note">Create a personal Basic, Plus, or Pro host subscription independently of shared rooms. This development form saves a pending request only; billing, invitations and Iotum activation are not connected.</p>
     {loading?<p role="status">Loading host setup…</p>:<>
@@ -162,7 +167,18 @@ function CreateHostAdmin({workspaceId,request,onDepartments}) {
       {step===2&&<div className="ac-host-form"><h3>Select personal host subscription</h3><fieldset><legend>Subscription plan</legend>{[['basic','Basic'],['plus','Plus'],['pro','Pro']].map(([value,label])=><label key={value} className="ac-host-plan"><input type="radio" name="host-plan" checked={details.plan===value} onChange={()=>field('plan',value)}/>{label}</label>)}</fieldset><p className="ac-note">A shared room is not required. Pricing and payment will be presented when billing integration is available.</p><div className="ac-host-actions"><button type="button" className="rc-button" onClick={()=>setStep(1)}>Back</button><button type="button" className="mc-action" onClick={()=>setStep(3)}>Review host</button></div></div>}
       {step===3&&<div className="ac-host-form"><h3>Review host request</h3><dl><dt>Host</dt><dd>{details.name}</dd><dt>Email</dt><dd>{details.email}</dd><dt>Phone</dt><dd>{details.phone||'Not provided'}</dd><dt>Job title</dt><dd>{details.jobTitle||'Not provided'}</dd><dt>Department</dt><dd>{departments.find(d=>d.id===details.departmentId)?.name||'Unassigned'}</dd><dt>Time zone</dt><dd>{details.timezone}</dd><dt>Personal plan</dt><dd>{details.plan.toUpperCase()}</dd><dt>Initial status</dt><dd>Pending billing — no activation</dd></dl><div className="ac-host-actions"><button type="button" className="rc-button" disabled={busy} onClick={()=>setStep(2)}>Back</button><button type="button" className="mc-action" disabled={busy} onClick={save}>{busy?'Saving…':'Save pending host'}</button></div></div>}
       {error&&<p role="alert" className="ac-error">{error}</p>}{notice&&<p role="status">{notice}</p>}
-      <h3>Pending host requests</h3><div className="ac-table" role="region" aria-label="Pending host requests" tabIndex={0}><table className="app-data-table"><caption>{drafts.length} pending host requests</caption><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Department</th><th scope="col">Job title</th><th scope="col">Plan</th><th scope="col">Status</th></tr></thead><tbody>{drafts.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td>{d.email}</td><td>{d.departmentName||'Unassigned'}</td><td>{d.jobTitle||'—'}</td><td>{d.plan.toUpperCase()}</td><td>Pending billing</td></tr>)}{!drafts.length&&<tr><td colSpan={6}>No pending hosts yet.</td></tr>}</tbody></table></div>
+      <h3>Pending host requests</h3><div className="ac-table" role="region" aria-label="Pending host requests" tabIndex={0}><table className="app-data-table"><caption>{drafts.length} pending host requests</caption><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Department</th><th scope="col">Job title</th><th scope="col">Plan</th><th scope="col">Status</th></tr></thead><tbody>{visibleDrafts.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td>{d.email}</td><td>{d.departmentName||'Unassigned'}</td><td>{d.jobTitle||'—'}</td><td>{d.plan.toUpperCase()}</td><td>Pending billing</td></tr>)}{!drafts.length&&<tr><td colSpan={6}>No pending hosts yet.</td></tr>}</tbody></table></div>
+      <div className="ac-table-pagination" aria-label="Pending host result pages">
+        <label htmlFor="ac-pending-page-size">Rows per page <select id="ac-pending-page-size" value={pendingPageSize} onChange={e=>{setPendingPageSize(Number(e.target.value));setPendingPage(1);}}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
+        <span aria-live="polite">{drafts.length?pendingStart+1:0}–{Math.min(pendingStart+pendingPageSize,drafts.length)} of {drafts.length} results · Page {currentPendingPage} of {pendingPageCount}</span>
+        <nav aria-label="Pending host pagination">
+          <button type="button" className="rc-button" disabled={currentPendingPage===1} onClick={()=>setPendingPage(1)} aria-label="First page">«</button>
+          <button type="button" className="rc-button" disabled={currentPendingPage===1} onClick={()=>setPendingPage(p=>Math.max(1,p-1))}>Previous</button>
+          {Array.from({length:pendingPageCount},(_,i)=>i+1).filter(n=>n===1||n===pendingPageCount||Math.abs(n-currentPendingPage)<=2).map((n,i,shown)=><span key={n} className="ac-page-item">{i>0&&n-shown[i-1]>1&&<span aria-hidden="true">…</span>}<button type="button" className="rc-button" aria-label={'Page '+n} aria-current={n===currentPendingPage?'page':undefined} onClick={()=>setPendingPage(n)}>{n}</button></span>)}
+          <button type="button" className="rc-button" disabled={currentPendingPage===pendingPageCount} onClick={()=>setPendingPage(p=>Math.min(pendingPageCount,p+1))}>Next</button>
+          <button type="button" className="rc-button" disabled={currentPendingPage===pendingPageCount} onClick={()=>setPendingPage(pendingPageCount)} aria-label="Last page">»</button>
+        </nav>
+      </div>
     </>}
   </section>;
 }
