@@ -105,6 +105,35 @@ function installAccountRoutes(app, store, options = {}) {
     } catch(e) {if(e.code==='ERR_SQLITE_ERROR' && /UNIQUE constraint failed/.test(e.message))return res.status(409).send('This department already exists.');throw e;}
     res.json({id:req.params.departmentId,name});
   });
+  // Saving a host draft never charges a card, sends an invitation or provisions Iotum.
+  app.get('/api/workspaces/:id/pending-hosts', signedIn, workspace, (req,res) => {
+    if(req.workspace.kind!=='organization'||req.workspace.role!=='admin') return res.status(403).send('Organization administrator access is required.');
+    const hosts=db.prepare(`SELECT p.id,p.name,p.email,p.phone,p.job_title AS jobTitle,p.department_id AS departmentId,
+      d.name AS departmentName,p.timezone,p.plan,p.status,p.created_at AS createdAt
+      FROM pending_hosts p LEFT JOIN departments d ON d.id=p.department_id AND d.organization_id=p.organization_id
+      WHERE p.organization_id=? ORDER BY p.created_at DESC`).all(req.workspace.id);
+    res.json({hosts});
+  });
+  app.post('/api/workspaces/:id/pending-hosts',protectedMutation,signedIn,workspace,(req,res)=>{
+    if(req.workspace.kind!=='organization'||req.workspace.role!=='admin') return res.status(403).send('Organization administrator access is required.');
+    const input=req.body;
+    if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['name','email','phone','jobTitle','departmentId','timezone','plan'].includes(k))) return res.status(400).send('Invalid host details.');
+    const {name,email,phone='',jobTitle='',departmentId='',timezone,plan}=input;
+    if([name,email,phone,jobTitle,departmentId,timezone,plan].some(v=>typeof v!=='string')) return res.status(400).send('Invalid host details.');
+    const n=name.trim(),e=email.trim().toLowerCase(),p=phone.trim(),job=jobTitle.trim(),tz=timezone.trim();
+    if(!n||n.length>200||!e||e.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)||p.length>40||job.length>120||!['basic','plus','pro'].includes(plan)) return res.status(400).send('Check the host name, email, phone, job title and plan.');
+    try { new Intl.DateTimeFormat('en-US',{timeZone:tz}); } catch { return res.status(400).send('Select a valid time zone.'); }
+    if(!tz||tz.length>80)return res.status(400).send('Select a valid time zone.');
+    if(departmentId && !db.prepare('SELECT 1 FROM departments WHERE id=? AND organization_id=?').get(departmentId,req.workspace.id))return res.status(400).send('Select one of this organization’s departments or leave it unassigned.');
+    if(db.prepare('SELECT 1 FROM users WHERE email=?').get(e)) return res.status(409).send('This email belongs to an existing account; host onboarding for existing users requires a separate workflow.');
+    if(db.prepare('SELECT count(*) n FROM pending_hosts WHERE organization_id=? AND status=?').get(req.workspace.id,'pending_billing').n>=500) return res.status(409).send('This organization has reached the pending-host limit.');
+    const id=randomUUID(),now=new Date().toISOString();
+    try {
+      db.prepare(`INSERT INTO pending_hosts(id,organization_id,name,email,phone,job_title,department_id,timezone,plan,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`).run(id,req.workspace.id,n,e,p,job,departmentId||null,tz,plan,now);
+    }catch(error){if(/UNIQUE constraint failed/.test(error.message))return res.status(409).send('This host email already has a pending request in this organization.');throw error;}
+    res.status(201).json({id,name:n,email:e,plan,status:'pending_billing',message:'Host draft saved. No payment, invitation or Iotum host was created.'});
+  });
   app.get('/api/workspaces/:id/admin', signedIn, workspace, (req, res) => {
     if (req.workspace.role !== 'admin') return res.status(403).send('Organization administrator access is required.');
     const members = db.prepare(`SELECT u.id, u.name, u.email, u.status, m.role, m.department_id AS departmentId, d.name AS departmentName FROM memberships m JOIN users u ON u.id = m.user_id LEFT JOIN departments d ON d.id=m.department_id AND d.organization_id=m.organization_id WHERE m.organization_id = ? ORDER BY u.name`).all(req.workspace.id);
