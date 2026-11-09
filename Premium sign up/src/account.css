@@ -55,3 +55,9 @@
 .ac-inline-department>div{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .ac-inline-department input{flex:1 1 220px;min-width:180px;box-sizing:border-box;padding:11px 12px;border:1px solid #9ba7b9;border-radius:6px;font:inherit;background:#fff;color:#172b55}
 .ac-inline-department button{white-space:nowrap}
+
+/* Pending host management */
+.ac-host-edit,.ac-host-confirm{border:1px solid #aab4c3;border-radius:8px;padding:18px;margin:16px 0 24px;max-width:720px}
+.ac-host-confirm p{margin:8px 0 16px}
+.ac-host-row-actions{white-space:nowrap}
+.ac-host-row-actions .rc-button{min-width:36px;margin-right:6px;font-size:18px}
