@@ -32,3 +32,19 @@
 .ac-table-pagination .rc-button{padding:7px 10px;min-width:34px}
 .ac-table-pagination .rc-button[aria-current=page]{background:#000080;color:white;border-color:#000080}
 .ac-page-item{display:inline-flex;align-items:center;gap:5px}
+
+/* Organization Admin: host onboarding */
+.ac-host-steps{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 22px}
+.ac-host-steps span{border:1px solid #a5afc0;border-radius:6px;padding:10px 15px;font-weight:600;font-size:13px}
+.ac-host-steps span[aria-current=step]{background:#172b55;color:#fff;border-color:#172b55}
+.ac-host-form{display:grid;gap:16px;max-width:680px;margin-bottom:28px}
+.ac-host-form>label{display:grid;gap:7px;font-size:14px;font-weight:600}
+.ac-host-form input:not([type=radio]),.ac-host-form select{width:100%;box-sizing:border-box;border:1px solid #9ba7b9;border-radius:6px;padding:11px 12px;font:inherit;background:#fff;color:#172b55}
+.ac-host-form fieldset{display:grid;gap:12px;border:1px solid #9ba7b9;border-radius:6px;padding:16px}
+.ac-host-form .ac-host-plan{display:flex;gap:10px;align-items:center}
+.ac-host-form dl{display:grid;grid-template-columns:minmax(110px,170px) 1fr;gap:10px 16px}
+.ac-host-form dt{font-weight:600}
+.ac-host-form dd{margin:0;overflow-wrap:anywhere}
+.ac-host-actions{display:flex;gap:12px;flex-wrap:wrap}
+.ac-host-form .mc-action{justify-self:start}
+.ac-host-admin>h3{margin-top:30px}
