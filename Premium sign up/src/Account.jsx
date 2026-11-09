@@ -137,7 +137,7 @@ function CreateHostAdmin({workspaceId,request,onDepartments}) {
   async function save(){
     if(busy)return;setBusy(true);setError('');setNotice('');
     try{
-      const response=await request(base+'/pending-hosts',{method:'POST',body:JSON.stringify(details)});
+      await request(base+'/pending-hosts',{method:'POST',body:JSON.stringify(details)});
       const fresh=await request(base+'/pending-hosts');
       setDrafts(fresh.hosts);
       setNotice('Host saved and confirmed in Pending Host Requests. No payment was collected and no invitation or Iotum account was created.');
