@@ -4,7 +4,7 @@ import RoomCalendar from './RoomCalendar';
 import { plans } from './pricing';
 export async function accountRequest(path, options = {}) {
   const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { 'Content-Type': 'application/json', 'X-RLC-Request': '1', ...options.headers } });
-  if (!response.ok) { const error = new Error(await response.text() || 'Request failed.'); error.status = response.status; throw error; }
+  if (!response.ok) { const detail=await response.text(); const message=response.status===404 && path.includes('/api/workspaces/') ? 'This feature is unavailable on the running backend. Pull the latest branch and restart the backend on port 4001.' : detail || 'Request failed.'; const error = new Error(message); error.status = response.status; throw error; }
   return response.json();
 }
 export function AccountMenu({ user, onSignedOut }) {
@@ -116,20 +116,31 @@ function OrganizationMembersTable({members}) {
 function CreateHostAdmin({workspaceId,request,onDepartments}) {
   const initial={name:'',email:'',phone:'',jobTitle:'',departmentId:'',timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'America/Los_Angeles',plan:'basic'};
   const [details,setDetails]=useState(initial),[step,setStep]=useState(1),[departments,setDepartments]=useState([]),[drafts,setDrafts]=useState([]);
-  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
+  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[newDepartment,setNewDepartment]=useState(''),[addingDepartment,setAddingDepartment]=useState(false);
   const base='/api/workspaces/'+encodeURIComponent(workspaceId);
   useEffect(()=>{let live=true;setLoading(true);setError('');
     Promise.all([request(base+'/departments'),request(base+'/pending-hosts')]).then(([d,h])=>{if(live){setDepartments(d.departments);setDrafts(h.hosts);}}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setLoading(false);});
     return()=>{live=false;};
   },[base,request]);
+  async function addDepartment(e){
+    e.preventDefault();if(addingDepartment||!newDepartment.trim())return;
+    setAddingDepartment(true);setError('');setNotice('');
+    try{
+      const d=await request(base+'/departments',{method:'POST',body:JSON.stringify({name:newDepartment.trim()})});
+      setDepartments(old=>[...old,d].sort((a,b)=>a.name.localeCompare(b.name)));
+      setDetails(old=>({...old,departmentId:d.id}));setNewDepartment('');
+      setNotice('Department added and selected for this host.');
+    }catch(e){setError(e.message);}finally{setAddingDepartment(false);}
+  }
   function field(key,value){setDetails(d=>({...d,[key]:value}));setError('');}
   function next(e){e.preventDefault();if(!details.name.trim()||!details.email.trim())return;setStep(2);}
   async function save(){
     if(busy)return;setBusy(true);setError('');setNotice('');
     try{
       const response=await request(base+'/pending-hosts',{method:'POST',body:JSON.stringify(details)});
-      setDrafts(old=>[{...details,id:response.id,status:'pending_billing',departmentName:departments.find(d=>d.id===details.departmentId)?.name||'',createdAt:new Date().toISOString()},...old]);
-      setNotice('Host draft saved. No payment was collected and no invitation or Iotum account was created.');
+      const fresh=await request(base+'/pending-hosts');
+      setDrafts(fresh.hosts);
+      setNotice('Host saved and confirmed in Pending Host Requests. No payment was collected and no invitation or Iotum account was created.');
       setDetails(initial);setStep(1);
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
@@ -144,6 +155,7 @@ function CreateHostAdmin({workspaceId,request,onDepartments}) {
         <label>Job title (optional)<input maxLength={120} value={details.jobTitle} onChange={e=>field('jobTitle',e.target.value)} placeholder="e.g., Program Director"/></label>
         <label>Department (optional)<select value={details.departmentId} onChange={e=>field('departmentId',e.target.value)}><option value="">No department assigned</option>{departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
         <p className="ac-note">Department is always optional. {departments.length===0?'No departments have been added yet.':'Choose an existing department or leave it unassigned.'} <button type="button" className="rc-button" onClick={onDepartments}>Manage Departments</button></p>
+        <div className="ac-inline-department"><label htmlFor="ac-new-host-department">Add a department (optional)</label><div><input id="ac-new-host-department" maxLength={80} value={newDepartment} onChange={e=>setNewDepartment(e.target.value)} placeholder="New department name" disabled={addingDepartment}/><button type="button" className="rc-button" disabled={addingDepartment||!newDepartment.trim()} onClick={addDepartment}>{addingDepartment?'Adding…':'Add and select'}</button></div></div>
         <label>Time zone *<select required value={details.timezone} onChange={e=>field('timezone',e.target.value)}>{[...new Set([details.timezone,'America/Los_Angeles','America/Denver','America/Chicago','America/New_York','America/Phoenix','Pacific/Honolulu','America/Anchorage','UTC'])].map(z=><option key={z} value={z}>{z.replaceAll('_',' ')}</option>)}</select></label>
         <button type="submit" className="mc-action">Continue to plan selection</button>
       </form>}
