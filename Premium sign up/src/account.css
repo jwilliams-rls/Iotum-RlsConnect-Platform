@@ -11,3 +11,9 @@
 .ac-app [tabindex="-1"]:focus{outline:none}
 
 .ac-side-heading{display:flex;align-items:center;gap:12px;margin:0;padding:12px;font-size:13px;font-weight:700;color:#000080}.ac-nav-group+.ac-nav-group{margin-top:18px}.ac-side-subnav{padding-left:37px}.ac-side-subnav a{padding:12px 9px;border-left:3px solid transparent;border-radius:6px;color:#000080}.ac-side-subnav a:hover{background:#f5f6fb}.ac-side-subnav a[aria-current=page]{background:#e9edff;border-left-color:#d84b10;text-decoration:none}
+
+/* Organization department management */
+.ac-department-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:20px 0}
+.ac-department-form label{font-weight:600;font-size:13px;flex-basis:100%;margin:0}
+.ac-department-form input{padding:12px;border:1px solid #9ba7b9;border-radius:5px;font:inherit;flex:1 1 240px;min-width:0}
+.ac-department-form .mc-action{margin:0}
