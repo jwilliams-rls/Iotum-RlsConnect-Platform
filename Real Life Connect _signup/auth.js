@@ -1,4 +1,4 @@
-const { randomBytes, createHash } = require('node:crypto');
+const { randomBytes, createHash, randomUUID } = require('node:crypto');
 const { hashPassword, verifyPassword } = require('./passwords');
 const { getTest } = require('./iotum-provision');
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -80,9 +80,34 @@ function installAccountRoutes(app, store, options = {}) {
       workspaces: req.workspaces, workspace: w, rooms,
       personalMeeting: { provisioned: Boolean(job), meetingUrl, plan: job?.draft.planSlug || null, isTest: Boolean(job), loginUrl: 'https://real-life.reallife-connect.live/login' } });
   });
+  // Departments belong to a specific organization, not to meeting rooms or subscriptions.
+  app.get('/api/workspaces/:id/departments', signedIn, workspace, (req,res) => {
+    if (req.workspace.kind !== 'organization' || req.workspace.role !== 'admin') return res.status(403).send('Organization administrator access is required.');
+    const departments=db.prepare('SELECT id,name FROM departments WHERE organization_id=? ORDER BY name COLLATE NOCASE').all(req.workspace.id);
+    res.json({ departments });
+  });
+  app.post('/api/workspaces/:id/departments', protectedMutation, signedIn, workspace, (req,res) => {
+    if (req.workspace.kind !== 'organization' || req.workspace.role !== 'admin') return res.status(403).send('Organization administrator access is required.');
+    const name=typeof req.body?.name==='string'?req.body.name.trim():'';
+    if (!name || name.length>80) return res.status(400).send('Department name must be 1–80 characters.');
+    const id=randomUUID();
+    try {db.prepare('INSERT INTO departments (id,organization_id,name,created_at) VALUES (?,?,?,?)').run(id,req.workspace.id,name,new Date().toISOString());}
+    catch(e) {if(e.code==='ERR_SQLITE_ERROR' && /UNIQUE constraint failed/.test(e.message))return res.status(409).send('This department already exists.');throw e;}
+    res.status(201).json({id,name});
+  });
+  app.put('/api/workspaces/:id/departments/:departmentId', protectedMutation, signedIn, workspace, (req,res) => {
+    if (req.workspace.kind !== 'organization' || req.workspace.role !== 'admin') return res.status(403).send('Organization administrator access is required.');
+    const name=typeof req.body?.name==='string'?req.body.name.trim():'';
+    if (!name || name.length>80) return res.status(400).send('Department name must be 1–80 characters.');
+    try {
+      const result=db.prepare('UPDATE departments SET name=? WHERE id=? AND organization_id=?').run(name,req.params.departmentId,req.workspace.id);
+      if(!result.changes)return res.status(404).send('Department not found.');
+    } catch(e) {if(e.code==='ERR_SQLITE_ERROR' && /UNIQUE constraint failed/.test(e.message))return res.status(409).send('This department already exists.');throw e;}
+    res.json({id:req.params.departmentId,name});
+  });
   app.get('/api/workspaces/:id/admin', signedIn, workspace, (req, res) => {
     if (req.workspace.role !== 'admin') return res.status(403).send('Organization administrator access is required.');
-    const members = db.prepare(`SELECT u.id, u.name, u.email, u.status, m.role FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.organization_id = ? ORDER BY u.name`).all(req.workspace.id);
+    const members = db.prepare(`SELECT u.id, u.name, u.email, u.status, m.role, m.department_id AS departmentId, d.name AS departmentName FROM memberships m JOIN users u ON u.id = m.user_id LEFT JOIN departments d ON d.id=m.department_id AND d.organization_id=m.organization_id WHERE m.organization_id = ? ORDER BY u.name`).all(req.workspace.id);
     const rooms = db.prepare('SELECT id, name, plan, status FROM rooms WHERE organization_id = ? ORDER BY name').all(req.workspace.id);
     res.json({ workspace: req.workspace, members, rooms, purchasingEnabled: false });
   });
