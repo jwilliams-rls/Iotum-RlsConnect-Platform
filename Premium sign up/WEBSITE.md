@@ -143,3 +143,13 @@ Use RowAction from ApplicationUI.jsx for compact row actions, with a familiar Ac
 Verified with the room-flow and workspace navigation checks, production build, and browser review of organization room and member tables using sample data. Frontend-only; no backend restart required.
 
 Calendar headers now show “[Room name] Calendar” first. Upcoming meetings and Back to shared rooms navigation buttons appear beneath the title, with calendar task actions alongside them when space allows. The row wraps on narrower screens. Room-flow checks, production build and browser layout review passed. Frontend-only update.
+
+## Month-first room calendar
+
+Calendar icons now open the room’s monthly overview, with Sunday–Saturday columns, a current-date marker and reservation counts for each date. Previous/next month, a native month picker and Today support navigation. Inactive adjacent-month dates provide week alignment. A failed load displays Unavailable and disables day selection; Retry calendar reloads.
+
+Selecting a date opens a separate daily schedule table with times, meeting titles, optional descriptions and permitted cancellation icons. Back to month returns to the selected month/date, while Upcoming meetings and Back to shared rooms remain beneath the room Calendar heading. Internal screen transitions reset workspace scrolling and restore keyboard focus. Daily cancellation asks for confirmation. Create reservation on a future/current selected date prefills the date; past dates can be reviewed but not booked.
+
+Hosts can enter an optional brief description when scheduling or editing. Descriptions use plain text (up to 2,000 characters), not agenda documents. Host views reveal only the host’s own titles/descriptions; other bookings appear as Reserved/Private meeting. Organization administrators can review details within their administration view. Counts include all visible reservations occupying that date and do not imply completed or live meetings.
+
+This update needs backend schema 12 and a restart. It preserves existing reservations and host settings, and remains in local test mode. Reuse calendar-dates.js for local month/day boundaries. Calendar-date tests cover leap years, six-row months, year rollover, midnight boundaries and daylight-saving changes.

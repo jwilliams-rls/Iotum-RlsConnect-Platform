@@ -40,7 +40,7 @@ test('version-one databases migrate without changing existing users', () => {
   db.close();
   const store = openStore(filename);
   try {
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 11);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 12);
     assert.equal(store.db.prepare('SELECT email FROM users').get().email, 'existing@example.test');
     assert.equal(readCatalog(store.db).revision, 1);
     for (const mutate of [c => c.plans[0].priceCents = -1, c => c.usageRates[0].priceMicroUsd = 0.5, c => c.features[0][1] = 999]) {
