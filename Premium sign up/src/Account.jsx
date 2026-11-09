@@ -35,17 +35,49 @@ function accountSection(){
   const hash=window.location.hash;
   return hash.includes('?rooms')?'rooms':hash.includes('?profile')?'profile':hash.includes('?admin')?'admin':'meetings';
 }
+
+function DepartmentsAdmin({workspaceId,request}) {
+  const [departments,setDepartments]=useState([]),[name,setName]=useState(''),[editing,setEditing]=useState(null);
+  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const endpoint='/api/workspaces/'+encodeURIComponent(workspaceId)+'/departments';
+  useEffect(()=>{let live=true;request(endpoint).then(d=>{if(live)setDepartments(d.departments);}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setLoading(false);});return()=>{live=false;};},[endpoint,request]);
+  async function save(e) {
+    e.preventDefault();if(busy)return;setBusy(true);setError('');setNotice('');
+    try {
+      const path=editing?endpoint+'/'+encodeURIComponent(editing.id):endpoint;
+      const d=await request(path,{method:editing?'PUT':'POST',body:JSON.stringify({name})});
+      setDepartments(prev=>[...prev.filter(item=>item.id!==d.id),d].sort((a,b)=>a.name.localeCompare(b.name)));
+      setNotice(editing?'Department renamed.':'Department added.');setEditing(null);setName('');
+    } catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  return <section className="ac-departments">
+    <p className="ac-note">Manage departments for your organization. The future Create Host form will use these as its department choices. Departments do not purchase subscriptions or grant access to shared rooms.</p>
+    <form className="ac-department-form" onSubmit={save}>
+      <label htmlFor="ac-department-name">{editing?'Rename department':'Department name'}</label>
+      <input id="ac-department-name" required maxLength={80} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g., Operations" disabled={busy}/>
+      <button type="submit" className="mc-action" disabled={busy}>{busy?'Saving…':editing?'Save name':'Add department'}</button>
+      {editing&&<button type="button" className="rc-button" onClick={()=>{setEditing(null);setName('');}}>Cancel</button>}
+    </form>
+    {error&&<p role="alert" className="ac-error">{error}</p>}{notice&&<p role="status">{notice}</p>}
+    {loading?<p role="status">Loading departments…</p>:<div className="ac-table" role="region" aria-label="Departments" tabIndex={0}>
+      <table className="app-data-table"><thead><tr><th scope="col">Department</th><th scope="col">Action</th></tr></thead>
+        <tbody>{departments.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td><button type="button" className="rc-button" onClick={()=>{setEditing(d);setName(d.name);setError('');}}>Rename</button></td></tr>)}
+        {!departments.length&&<tr><td colSpan={2}>No departments yet.</td></tr>}</tbody>
+      </table>
+    </div>}
+  </section>;
+}
 export function Dashboard({ onSignedOut, user:sessionUser }) {
   const [data, setData] = useState(null), [error, setError] = useState(''), [workspace, setWorkspace] = useState('');
   const [tab,setTab]=useState(accountSection);
-  const [adminSection,setAdminSection]=useState(()=>window.location.hash.includes('view=rooms')?'rooms':'members');
+  const [adminSection,setAdminSection]=useState(()=>window.location.hash.includes('view=departments')?'departments':window.location.hash.includes('view=rooms')?'rooms':'members');
   const [mobileOpen,setMobileOpen]=useState(false);
   const mobileDialog=useRef(null),menuButton=useRef(null),content=useRef(null),pageHeading=useRef(null);
   const [admin, setAdmin] = useState(null), [adminError, setAdminError] = useState('');
   const [reload, setReload] = useState(0);
   const [openingMeetings, setOpeningMeetings] = useState(false), [meetingError, setMeetingError] = useState('');
   useEffect(()=>{
-    function navigate(){setTab(accountSection());setAdminSection(window.location.hash.includes('view=rooms')?'rooms':'members');setMobileOpen(false);}
+    function navigate(){setTab(accountSection());setAdminSection(window.location.hash.includes('view=departments')?'departments':window.location.hash.includes('view=rooms')?'rooms':'members');setMobileOpen(false);}
     window.addEventListener('hashchange',navigate);return()=>window.removeEventListener('hashchange',navigate);
   },[]);
   useEffect(()=>{
@@ -100,13 +132,13 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
   const labels={meetings:'My Meetings',rooms:'Shared Rooms',profile:'My Account',admin:'Organization Admin'};
   function go(section,subsection='members'){
     setTab(section);setAdminSection(subsection);setMobileOpen(false);
-    window.location.hash='account?'+section+(section==='admin'&&subsection==='rooms'?'&view=rooms':'');
+    window.location.hash='account?'+section+(section==='admin'&&subsection!=='members'?'&view='+subsection:'');
   }
   function navigation(){
     return <><a className="ac-app-brand" href="#account?meetings" onClick={e=>{e.preventDefault();go('meetings');}}><img src={`${import.meta.env.BASE_URL}real-life-connect-logo.png`} alt="Real Life Connect workspace"/><span>WORKSPACE</span></a>
       <div className="ac-workspace-name"><small>{data?.workspace.kind==='personal'?'PERSONAL ACCOUNT':'ORGANIZATION'}</small><strong>{data?.workspace.name||'Your workspace'}</strong></div>
       <nav className="ac-side-nav" aria-label="Workspace navigation"><div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="meetings"/><span>Host Admin</span></h2><div className="ac-side-subnav">{['meetings','rooms','profile'].map(key=><a key={key} href={'#account?'+key} aria-current={tab===key?'page':undefined} onClick={e=>{e.preventDefault();go(key);}}>{labels[key]}</a>)}</div></div>
-        {isAdmin&&<div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="admin"/><span>Organization Admin</span></h2><div className="ac-side-subnav"><a href="#account?admin" aria-current={tab==='admin'&&adminSection==='members'?'page':undefined} onClick={e=>{e.preventDefault();go('admin');}}>Members</a><a href="#account?admin&view=rooms" aria-current={tab==='admin'&&adminSection==='rooms'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','rooms');}}>Shared room settings</a></div></div>}
+        {isAdmin&&<div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="admin"/><span>Organization Admin</span></h2><div className="ac-side-subnav"><a href="#account?admin" aria-current={tab==='admin'&&adminSection==='members'?'page':undefined} onClick={e=>{e.preventDefault();go('admin');}}>Members</a><a href="#account?admin&view=departments" aria-current={tab==='admin'&&adminSection==='departments'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','departments');}}>Departments</a><a href="#account?admin&view=rooms" aria-current={tab==='admin'&&adminSection==='rooms'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','rooms');}}>Shared room settings</a></div></div>}
       </nav><div className="ac-side-bottom"><a href="#home" onClick={()=>setMobileOpen(false)}>← Public website</a><div><span className="ac-avatar" aria-hidden="true">{(currentUser?.name||'RL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span><p><strong>{currentUser?.name||'Your account'}</strong><small>{data?.workspace.kind==='personal'?'Personal account':isAdmin?'Organization administrator':'Member'}</small></p></div></div></>;
   }
   return <div className="ac-app">
@@ -119,8 +151,8 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
     {tab==='meetings' && <div className="ac-panel"><h2>Your Personal Meeting Space</h2>{data.personalMeeting.provisioned ? <><p className="ac-plan">Plan: <strong>{plans.find(p=>p.code===data.personalMeeting.plan)?.name || 'Meeting account'}</strong></p><div className="ac-meeting-actions"><article><h3>Manage Meetings</h3><p>Schedule meetings, view upcoming sessions, and access your meeting history and recordings.</p><button className="mc-action" type="button" disabled={openingMeetings} onClick={openMeetings}>{openingMeetings ? "Opening meetings…" : "Open My Meetings ↗"}</button></article>{data.personalMeeting.meetingUrl && <article><h3>Your Meeting Room</h3><p>Open your personal room. Sign in to host, or share this room link with your guests.</p><a className="mc-action mc-action-secondary" href={data.personalMeeting.meetingUrl} target="_blank" rel="noopener noreferrer">Open Room Link ↗</a></article>}</div>{meetingError && <p className="ac-error" role="alert">{meetingError}</p>}<p className="ac-note">Your meeting dashboard opens in a new tab.</p></> : <p>Your personal meeting space is awaiting activation.</p>}</div>}
     {tab==='rooms' && <div className="ac-panel"><RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} canManage={false}/></div>}
     {tab==='profile' && <div className="ac-panel"><h2>My account</h2><dl><dt>Name</dt><dd>{data.user.name}</dd><dt>Email</dt><dd>{data.user.email}</dd><dt>Workspace permission</dt><dd>{data.workspace.role==='admin'?'Administrator':'Member'}</dd><dt>Payment status</dt><dd>{data.user.status==='pending_payment'?'Pending payment':data.user.status}</dd></dl></div>}
-    {tab==='admin'&&isAdmin&&<section className="ac-panel ac-admin-panel"><header className="ac-section-header"><div><p className="ac-plan">{data.workspace.name}</p><h2>{adminSection==='members'?'Organization members':'Shared room settings'}</h2></div><nav className="ac-admin-switch" aria-label="Organization sections"><button aria-pressed={adminSection==='members'} onClick={()=>go('admin')}>Members</button><button aria-pressed={adminSection==='rooms'} onClick={()=>go('admin','rooms')}>Shared rooms</button></nav></header>
-      {adminSection==='rooms'?<RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} administration/>:adminError?<p role="alert" className="ac-error">{adminError}</p>:!admin?<p role="status">Loading organization…</p>:<><p className="ac-note">People who belong to this organization. Their website permissions are shown below.</p><div className="ac-table" role="region" aria-label="Organization members table" tabIndex={0}><table className="app-data-table"><caption>{admin.members.length} organization members</caption><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Website role</th><th scope="col">Payment status</th></tr></thead><tbody>{admin.members.map(m=><tr key={m.id}><th scope="row">{m.name}</th><td>{m.email}</td><td>{m.role}</td><td>{m.status}</td></tr>)}</tbody></table></div></>}
+    {tab==='admin'&&isAdmin&&<section className="ac-panel ac-admin-panel"><header className="ac-section-header"><div><p className="ac-plan">{data.workspace.name}</p><h2>{adminSection==='members'?'Organization members':adminSection==='departments'?'Departments':'Shared room settings'}</h2></div><nav className="ac-admin-switch" aria-label="Organization sections"><button aria-pressed={adminSection==='members'} onClick={()=>go('admin')}>Members</button><button aria-pressed={adminSection==='departments'} onClick={()=>go('admin','departments')}>Departments</button><button aria-pressed={adminSection==='rooms'} onClick={()=>go('admin','rooms')}>Shared rooms</button></nav></header>
+      {adminSection==='departments'?<DepartmentsAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='rooms'?<RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} administration/>:adminError?<p role="alert" className="ac-error">{adminError}</p>:!admin?<p role="status">Loading organization…</p>:<><p className="ac-note">People who belong to this organization. Their website permissions are shown below.</p><div className="ac-table" role="region" aria-label="Organization members table" tabIndex={0}><table className="app-data-table"><caption>{admin.members.length} organization members</caption><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Website role</th><th scope="col">Payment status</th></tr></thead><tbody>{admin.members.map(m=><tr key={m.id}><th scope="row">{m.name}</th><td>{m.email}</td><td>{m.role}</td><td>{m.status}</td></tr>)}</tbody></table></div></>}
     </section>}
     </>}
     </main><footer className="ac-app-footer">Real Life Connect · Real Life Systems, LLC</footer></div>
