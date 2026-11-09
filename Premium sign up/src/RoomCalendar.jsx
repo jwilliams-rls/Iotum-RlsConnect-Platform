@@ -81,10 +81,10 @@ function defaultReservationStart(day){
   if(day!==dateValue(new Date()))date.setHours(9);
   return dateValue(date)+'T'+String(date.getHours()).padStart(2,'0')+':'+String(date.getMinutes()).padStart(2,'0');
 }
-function ReserveRoom({room,request,endpoint,onClose,onSaved,onReturnToMeetings,initialDay=''}) {
+function ReserveRoom({room,request,endpoint,onClose,onSaved,onReturnToMeetings,initialDay='',initialStart=''}) {
   const [options,setOptions]=useState({muteMode:'conversation',requirePin:false,securityPin:''});
   const [description,setDescription]=useState('');
-  const [title,setTitle]=useState(''),[start,setStart]=useState(()=>defaultReservationStart(initialDay)),[duration,setDuration]=useState(Math.min(60,room.max_minutes));
+  const [title,setTitle]=useState(''),[start,setStart]=useState(()=>initialStart||defaultReservationStart(initialDay)),[duration,setDuration]=useState(Math.min(60,room.max_minutes));
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState(null);
   async function save(e){
     e.preventDefault();if(busy||saved)return;setBusy(true);setError('');
@@ -103,7 +103,7 @@ function ReserveRoom({room,request,endpoint,onClose,onSaved,onReturnToMeetings,i
 function Calendar({room,request,base,onBack,onPreferences,canManage,initialDate,onUpcoming}) {
   const [month,setMonth]=useState(()=>dateValue(initialDate?new Date(initialDate):new Date()).slice(0,7)),[selectedDay,setSelectedDay]=useState('');
   const [rows,setRows]=useState([]),[revision,setRevision]=useState(0),[error,setError]=useState(''),[message,setMessage]=useState('');
-  const [loading,setLoading]=useState(true),[cancelling,setCancelling]=useState(false),[reserving,setReserving]=useState(false),[cancelTarget,setCancelTarget]=useState(null),[cancelError,setCancelError]=useState('');
+  const [loading,setLoading]=useState(true),[cancelling,setCancelling]=useState(false),[reserving,setReserving]=useState(false),[chosenStart,setChosenStart]=useState(''),[cancelTarget,setCancelTarget]=useState(null),[cancelError,setCancelError]=useState('');
   const titleRef=useRef(null),dayHeading=useRef(null),monthTable=useRef(null),calendarRoot=useRef(null),lastDay=useRef('');
   useEffect(()=>{titleRef.current?.focus({preventScroll:true});},[]);
   useEffect(()=>{calendarRoot.current?.closest('.ac-workspace')?.scrollTo?.({top:0,left:0});if(selectedDay)dayHeading.current?.focus({preventScroll:true});else if(lastDay.current)monthTable.current?.querySelector('button[data-date="'+lastDay.current+'"]')?.focus({preventScroll:true});},[selectedDay]);
@@ -121,11 +121,24 @@ function Calendar({room,request,base,onBack,onPreferences,canManage,initialDate,
   }
   function changeMonth(value){if(value===month)setRevision(n=>n+1);setMonth(value);setSelectedDay('');setMessage('');setLoading(true);}
   function shiftMonth(n){const d=monthLayout(month).first;d.setMonth(d.getMonth()+n);changeMonth(dateValue(d).slice(0,7));}
-  function openReservation(){setMessage('');setReserving(true);}
+  function openReservation(start=''){setMessage('');setChosenStart(start);setReserving(true);}
   function showMonth(){setSelectedDay('');}
   const {first,cells}=monthLayout(month),today=dateValue(new Date()),dayRows=selectedDay?dayReservations(rows,selectedDay):[];
   const canCreate=room.canReserve&&(!selectedDay||selectedDay>=today);
   const monthTitle=first.toLocaleDateString([],{month:'long',year:'numeric'});
+  // Availability is advisory; the API remains responsible for conflict checks on save.
+  const availableStarts=[];
+  if(selectedDay&&!loading&&!error&&room.canReserve&&selectedDay>=today){
+    const baseDay=atMidnight(selectedDay),now=Date.now();
+    const endOfWindow=20*60,step=30;
+    for(let minutes=9*60;minutes+15<=endOfWindow;minutes+=step){
+      const start=new Date(baseDay);start.setMinutes(minutes);
+      const end=new Date(start.getTime()+15*60000);
+      if(start.getTime()<=now)continue;
+      if(dayRows.some(r=>Date.parse(r.startsAt)<end.getTime()&&Date.parse(r.endsAt)>start.getTime()))continue;
+      availableStarts.push({key:dateValue(start)+'T'+String(start.getHours()).padStart(2,'0')+':'+String(start.getMinutes()).padStart(2,'0'),label:time(start)});
+    }
+  }
   return <section className="rc-calendar" ref={calendarRoot}>
     <header className="rc-local-nav rc-calendar-header"><h3 ref={titleRef} tabIndex={-1}>{room.name} Calendar</h3><div className="rc-calendar-nav-row"><nav className="rc-calendar-back-links" aria-label="Calendar navigation">{onUpcoming&&<button className="rc-button" onClick={onUpcoming}>← Upcoming meetings</button>}<button className="rc-button" onClick={onBack}>← Back to shared rooms</button></nav><div className="rc-task-actions">{canManage&&<button className="rc-button" onClick={onPreferences}>Room preferences</button>}{room.canReserve&&<button className="mc-action" disabled={cancelling||!canCreate} onClick={openReservation}>Create reservation</button>}</div></div></header>
     <p className="ac-note">Pro shared room · maximum {room.max_minutes} minutes per reservation. Times shown in {zone}. Counts include reservations that continue across midnight.</p>
@@ -134,10 +147,11 @@ function Calendar({room,request,base,onBack,onPreferences,canManage,initialDate,
       <p className="ac-note">Select a date to see its scheduled times and meeting details.</p><div className="rc-month-wrap" ref={monthTable} tabIndex={-1}><table className="rc-month-grid" aria-label={monthTitle+' room reservations'}><thead><tr>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(d=><th scope="col" key={d}><abbr title={d}>{d.slice(0,3)}</abbr></th>)}</tr></thead><tbody>{Array.from({length:cells.length/7},(_,week)=><tr key={week}>{cells.slice(week*7,week*7+7).map(cell=>{const count=dayReservations(rows,cell.key).length;return <td key={cell.key} className={cell.inMonth?'':'rc-month-outside'}>{cell.inMonth?<button type="button" className="rc-day-button" data-date={cell.key} disabled={loading||Boolean(error)} aria-current={cell.key===today?'date':undefined} aria-label={fullDate(cell.date)+' — '+(loading?'Loading':error?'Unavailable':count+' scheduled '+(count===1?'meeting':'meetings'))} onClick={()=>{lastDay.current=cell.key;setSelectedDay(cell.key);setMessage('');}}><span className="rc-day-number">{cell.date.getDate()}</span><span className={'rc-day-count'+(count?' rc-has-meetings':'')}>{loading?'…':error?'Unavailable':count+' '+(count===1?'meeting':'meetings')}</span></button>:<span className="rc-day-outside-number" aria-hidden="true">{cell.date.getDate()}</span>}</td>;})}</tr>)}</tbody></table></div></>:
       <section className="rc-day-agenda"><div className="rc-day-agenda-heading"><button className="rc-button" onClick={showMonth}>← Back to month</button><h4 ref={dayHeading} tabIndex={-1}>{fullDate(atMidnight(selectedDay))}</h4><p>{loading?'Loading…':error?'Schedule unavailable':dayRows.length+' scheduled '+(dayRows.length===1?'meeting':'meetings')}</p></div>
         {!loading&&!error&&<div className="rc-rooms-table-wrap"><table className="app-data-table rc-day-table"><caption className="rlc-sr-only">Scheduled meetings for {fullDate(atMidnight(selectedDay))}</caption><thead><tr><th scope="col">Time</th><th scope="col">Meeting</th><th scope="col">Brief description</th><th scope="col">Actions</th></tr></thead><tbody>{dayRows.map(r=><tr key={r.id}><td>{new Date(r.startsAt)<atMidnight(selectedDay)?'Continues from '+fullDate(r.startsAt):time(r.startsAt)} – {new Date(r.endsAt)>addDays(atMidnight(selectedDay),1)?'continues to '+fullDate(r.endsAt):time(r.endsAt)}</td><th scope="row">{r.title}{r.mine&&<small className="rc-meeting-status">Your reservation</small>}</th><td className="rc-description">{r.description||(!r.mine&&!canManage?'Private meeting':'No description provided.')}</td><td>{r.canCancel&&<RowAction kind="cancel" label={'Cancel reservation for '+r.title} title="Cancel reservation" onClick={()=>{setCancelError('');setCancelTarget(r);}}/>}</td></tr>)}{!dayRows.length&&<tr><td colSpan={4}>No meetings scheduled for this date.</td></tr>}</tbody></table></div>}
+        {!loading&&!error&&room.canReserve&&selectedDay>=today&&<section className="rc-availability" aria-label="Available starting times"><h4>Available start times</h4><p className="ac-note">Showing open 30-minute start intervals from 9 AM to 8 PM. Select a time to prefill the reservation form. You may adjust the start or duration there; the server checks the full requested period before saving.</p>{availableStarts.length?<div className="rc-open-slots">{availableStarts.map(slot=><button type="button" className="rc-open-slot" key={slot.key} onClick={()=>openReservation(slot.key)} aria-label={'Reserve '+room.name+' at '+slot.label}>{slot.label}<span>Available</span></button>)}</div>:<p>No available suggested starts remain on this date. Choose another day or use Create reservation to enter a different valid time.</p>}</section>}
       </section>}
     {!room.canReserve&&<p className="ac-note">Your administrator must assign your linked Basic or Plus account before you can reserve this room.</p>}
     <footer className="rc-task-actions rc-calendar-footer">{selectedDay&&<button className="rc-button" onClick={showMonth}>Back to month</button>}<button className="rc-button" onClick={onBack}>Back to shared rooms</button>{room.canReserve&&<button className="mc-action" disabled={cancelling||!canCreate} onClick={openReservation}>Create reservation</button>}</footer>
-    {reserving&&<ReserveRoom room={room} request={request} endpoint={endpoint} initialDay={selectedDay} onClose={()=>setReserving(false)} onSaved={()=>setRevision(n=>n+1)} onReturnToMeetings={onUpcoming}/>}
+    {reserving&&<ReserveRoom room={room} request={request} endpoint={endpoint} initialDay={selectedDay} initialStart={chosenStart} onClose={()=>setReserving(false)} onSaved={()=>setRevision(n=>n+1)} onReturnToMeetings={onUpcoming}/>}
     {cancelTarget&&<TaskDialog title="Cancel reservation" busy={cancelling} onClose={()=>{if(!cancelling)setCancelTarget(null);}}><p>Cancel <strong>{cancelTarget.title}</strong> and release its reserved time?</p>{cancelError&&<p className="ac-error" role="alert">{cancelError}</p>}<div className="rc-task-actions"><button className="mc-action" disabled={cancelling} onClick={cancel}>Confirm cancellation</button><button className="rc-button" disabled={cancelling} onClick={()=>setCancelTarget(null)}>Keep reservation</button></div></TaskDialog>}
   </section>;
 }
