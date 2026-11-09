@@ -162,6 +162,17 @@ function installAccountRoutes(app, store, options = {}) {
     if(!result.changes)return res.status(404).send('Active pending host request not found.');
     res.json({cancelled:true});
   });
+  app.post('/api/workspaces/:id/pending-hosts/:hostId/restore',protectedMutation,signedIn,workspace,(req,res)=>{
+    if(req.workspace.kind!=='organization'||req.workspace.role!=='admin')return res.status(403).send('Organization administrator access is required.');
+    const host=db.prepare('SELECT email,status FROM pending_hosts WHERE id=? AND organization_id=?').get(req.params.hostId,req.workspace.id);
+    if(!host)return res.status(404).send('Host request not found.');
+    if(host.status!=='cancelled')return res.status(409).send('Only cancelled host requests can be restored.');
+    if(db.prepare('SELECT 1 FROM users WHERE email=?').get(host.email))return res.status(409).send('This email now belongs to an existing account. Resolve that conflict before restoring.');
+    if(db.prepare("SELECT count(*) n FROM pending_hosts WHERE organization_id=? AND status='pending_billing'").get(req.workspace.id).n>=500)return res.status(409).send('This organization has reached the pending-host limit.');
+    const result=db.prepare("UPDATE pending_hosts SET status='pending_billing' WHERE id=? AND organization_id=? AND status='cancelled'").run(req.params.hostId,req.workspace.id);
+    if(!result.changes)return res.status(409).send('Request status changed. Refresh and try again.');
+    res.json({restored:true,status:'pending_billing'});
+  });
   app.get('/api/workspaces/:id/admin', signedIn, workspace, (req, res) => {
     if (req.workspace.role !== 'admin') return res.status(403).send('Organization administrator access is required.');
     const members = db.prepare(`SELECT u.id, u.name, u.email, u.status, m.role, m.department_id AS departmentId, d.name AS departmentName FROM memberships m JOIN users u ON u.id = m.user_id LEFT JOIN departments d ON d.id=m.department_id AND d.organization_id=m.organization_id WHERE m.organization_id = ? ORDER BY u.name`).all(req.workspace.id);
