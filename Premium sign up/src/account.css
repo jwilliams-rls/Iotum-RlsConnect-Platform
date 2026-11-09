@@ -48,3 +48,10 @@
 .ac-host-actions{display:flex;gap:12px;flex-wrap:wrap}
 .ac-host-form .mc-action{justify-self:start}
 .ac-host-admin>h3{margin-top:30px}
+
+/* Quick department creation during new host setup */
+.ac-inline-department{display:grid;gap:8px;max-width:680px}
+.ac-inline-department>label{font-size:14px;font-weight:600}
+.ac-inline-department>div{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ac-inline-department input{flex:1 1 220px;min-width:180px;box-sizing:border-box;padding:11px 12px;border:1px solid #9ba7b9;border-radius:6px;font:inherit;background:#fff;color:#172b55}
+.ac-inline-department button{white-space:nowrap}
