@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 13) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 14) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -265,6 +265,13 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
       CREATE INDEX departments_organization ON departments(organization_id);
       ALTER TABLE memberships ADD COLUMN department_id TEXT REFERENCES departments(id);
       PRAGMA user_version = 13;
+      COMMIT;`);
+  }
+  if (version < 14) {
+    db.exec(`BEGIN IMMEDIATE;
+      ALTER TABLE room_meeting_options ADD COLUMN project_reference TEXT NOT NULL DEFAULT '' CHECK(length(project_reference) <= 160);
+      ALTER TABLE room_meeting_options ADD COLUMN customer_reference TEXT NOT NULL DEFAULT '' CHECK(length(customer_reference) <= 160);
+      PRAGMA user_version = 14;
       COMMIT;`);
   }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {
