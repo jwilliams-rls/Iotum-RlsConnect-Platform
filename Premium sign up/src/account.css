@@ -61,3 +61,13 @@
 .ac-host-confirm p{margin:8px 0 16px}
 .ac-host-row-actions{white-space:nowrap}
 .ac-host-row-actions .rc-button{min-width:36px;margin-right:6px;font-size:18px}
+
+/* Independent Pending Host Requests page: no nested vertical scroll region */
+.ac-host-requests-admin{min-width:0}
+.ac-host-show-cancelled{display:inline-flex;align-items:center;gap:9px;margin:8px 0 20px;font-weight:600}
+.ac-host-table-wrap{width:100%;min-width:0;overflow:visible}
+.ac-host-table-wrap .app-data-table{width:100%}
+@media(max-width:800px){
+  .ac-host-table-wrap{overflow-x:auto}
+  .ac-host-table-wrap .app-data-table{min-width:900px}
+}
