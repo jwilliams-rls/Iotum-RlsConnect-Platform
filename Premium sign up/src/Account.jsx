@@ -118,7 +118,7 @@ function CreateHostAdmin({workspaceId,request}) {
   const [details,setDetails]=useState(initial),[step,setStep]=useState(1),[departments,setDepartments]=useState([]),[drafts,setDrafts]=useState([]);
   const [pendingPageSize,setPendingPageSize]=useState(10),[pendingPage,setPendingPage]=useState(1);
   const [hostFilters,setHostFilters]=useState({name:'',email:'',department:'',jobTitle:'',plan:'',status:''});
-  const [editingHost,setEditingHost]=useState(null),[cancellingHost,setCancellingHost]=useState(null);
+  const [editingHost,setEditingHost]=useState(null),[cancellingHost,setCancellingHost]=useState(null),[restoringHost,setRestoringHost]=useState(null);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[newDepartment,setNewDepartment]=useState(''),[addingDepartment,setAddingDepartment]=useState(false),[showNewDepartment,setShowNewDepartment]=useState(false);
   const base='/api/workspaces/'+encodeURIComponent(workspaceId);
   useEffect(()=>{let live=true;setLoading(true);setError('');
@@ -171,6 +171,13 @@ function CreateHostAdmin({workspaceId,request}) {
       await refreshHosts();setCancellingHost(null);setNotice('Request cancelled. No payment or Iotum action occurred.');
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
+  async function restoreHost(){
+    if(busy||!restoringHost)return;setBusy(true);setError('');setNotice('');
+    try{
+      await request(base+'/pending-hosts/'+encodeURIComponent(restoringHost.id)+'/restore',{method:'POST',body:'{}'});
+      await refreshHosts();setRestoringHost(null);setNotice('Host request restored to Pending Billing. No payment or Iotum action occurred.');
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
   const pendingPageCount=Math.max(1,Math.ceil(filteredHosts.length/pendingPageSize));
   const currentPendingPage=Math.min(pendingPage,pendingPageCount);
   const pendingStart=(currentPendingPage-1)*pendingPageSize;
@@ -210,13 +217,18 @@ function CreateHostAdmin({workspaceId,request}) {
         <p>The request will remain in history as Cancelled. No billing or Iotum action will occur.</p>
         <div className="ac-host-actions"><button type="button" className="rc-button" disabled={busy} onClick={cancelHost}>{busy?'Cancelling…':'Confirm cancellation'}</button><button type="button" className="rc-button" disabled={busy} onClick={()=>setCancellingHost(null)}>Keep request</button></div>
       </div>}
+      {restoringHost&&<div className="ac-host-confirm" role="group" aria-label="Confirm restore request">
+        <strong>Restore the request for {restoringHost.name}?</strong>
+        <p>The request will return to Pending Billing. No payment, invitation or Iotum activation will occur.</p>
+        <div className="ac-host-actions"><button type="button" className="rc-button" disabled={busy} onClick={restoreHost}>{busy?'Restoring…':'Confirm restoration'}</button><button type="button" className="rc-button" disabled={busy} onClick={()=>setRestoringHost(null)}>Keep cancelled</button></div>
+      </div>}
       <div className="ac-table" role="region" aria-label="Pending host requests" tabIndex={0}>
         <table className="app-data-table ac-filterable-table">
           <caption>{filteredHosts.length} of {drafts.length} host requests match your filters</caption>
           <thead><tr>{hostColumns.map(([key,label])=><th scope="col" key={key}>{label}</th>)}<th scope="col">Actions</th></tr>
             <tr className="ac-column-filters">{hostColumns.map(([key,label])=><th key={key}><label className="rlc-sr-only" htmlFor={'ac-host-filter-'+key}>Search {label}</label><input id={'ac-host-filter-'+key} type="search" value={hostFilters[key]} onChange={e=>hostFilter(key,e.target.value)} placeholder={'Search '+label.toLowerCase()}/></th>)}<th><button type="button" className="rc-button" onClick={()=>{setHostFilters({name:'',email:'',department:'',jobTitle:'',plan:'',status:''});setPendingPage(1);}}>Clear</button></th></tr>
           </thead>
-          <tbody>{visibleDrafts.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td>{d.email}</td><td>{d.departmentName||'Unassigned'}</td><td>{d.jobTitle||'—'}</td><td>{d.plan.toUpperCase()}</td><td>{d.status==='cancelled'?'Cancelled':'Pending billing'}</td><td className="ac-host-row-actions">{d.status!=='cancelled'?<><button type="button" className="rc-button" title={'Edit '+d.name} aria-label={'Edit '+d.name} onClick={()=>{setEditingHost({...d});setCancellingHost(null);setError('');}}>✎</button><button type="button" className="rc-button" title={'Cancel request for '+d.name} aria-label={'Cancel request for '+d.name} onClick={()=>{setCancellingHost(d);setEditingHost(null);setError('');}}>✕</button></>:<span>—</span>}</td></tr>)}{!filteredHosts.length&&<tr><td colSpan={7}>No host requests match the current filters.</td></tr>}</tbody>
+          <tbody>{visibleDrafts.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td>{d.email}</td><td>{d.departmentName||'Unassigned'}</td><td>{d.jobTitle||'—'}</td><td>{d.plan.toUpperCase()}</td><td>{d.status==='cancelled'?'Cancelled':'Pending billing'}</td><td className="ac-host-row-actions">{d.status!=='cancelled'?<><button type="button" className="rc-button" title={'Edit '+d.name} aria-label={'Edit '+d.name} onClick={()=>{setEditingHost({...d});setCancellingHost(null);setRestoringHost(null);setError('');}}>✎</button><button type="button" className="rc-button" title={'Cancel request for '+d.name} aria-label={'Cancel request for '+d.name} onClick={()=>{setCancellingHost(d);setEditingHost(null);setRestoringHost(null);setError('');}}>✕</button></>:<button type="button" className="rc-button" title={'Restore request for '+d.name} aria-label={'Restore request for '+d.name} onClick={()=>{setRestoringHost(d);setEditingHost(null);setCancellingHost(null);setError('');}}>↶</button>}</td></tr>)}{!filteredHosts.length&&<tr><td colSpan={7}>No host requests match the current filters.</td></tr>}</tbody>
         </table>
       </div>
       <div className="ac-table-pagination" aria-label="Pending host result pages">
