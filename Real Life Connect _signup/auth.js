@@ -48,8 +48,64 @@ function installAccountRoutes(app, store, options = {}) {
       return res.json({ signedIn: true });
     } catch (error) { next(error); } finally { verifying--; }
   });
+  function platformRoles(userId) {
+    return db.prepare('SELECT role FROM platform_roles WHERE user_id=? ORDER BY role').all(userId).map(x=>x.role);
+  }
+  function platformAccess(allowed) {
+    return (req,res,next)=>{
+      req.platformRoles=platformRoles(req.account.user_id);
+      if(!req.platformRoles.some(role=>allowed.includes(role)))return res.status(403).send('Platform administrator access is required.');
+      next();
+    };
+  }
+  app.get('/api/platform/overview',signedIn,platformAccess(['system_admin','sales_admin','sales_rep']),(req,res)=>{
+    const roles=req.platformRoles;
+    res.json({
+      roles,
+      sections:[
+        {id:'accounts',title:'Customer Organizations',status:'planned',scope:'system_admin,sales_admin'},
+        {id:'catalog',title:'Subscription Plans & Pricing',status:'planned',scope:'system_admin'},
+        {id:'features',title:'Feature Management & Pro Beta',status:'planned',scope:'system_admin'},
+        {id:'specials',title:'Specials & Discounts',status:'planned',scope:'system_admin,sales_admin'},
+        {id:'approvals',title:'Dual-Approval Queue',status:'planned',scope:'system_admin,sales_admin'},
+        {id:'sales',title:'Sales Leads & Follow-ups',status:'planned',scope:'system_admin,sales_admin,sales_rep'},
+        {id:'corporate',title:'Corporate Accounts',status:'planned',scope:'system_admin,sales_admin'},
+        {id:'commissions',title:'Commission Management',status:'planned',scope:'system_admin,sales_admin'},
+        {id:'roles',title:'Platform Access',status:'available',scope:'system_admin'}
+      ].filter(section=>section.scope.split(',').some(role=>roles.includes(role)))
+    });
+  });
+  app.get('/api/platform/roles',signedIn,platformAccess(['system_admin']),(req,res)=>{
+    const rows=db.prepare(`SELECT p.user_id AS userId,u.name,u.email,p.role,p.granted_at AS grantedAt
+      FROM platform_roles p JOIN users u ON u.id=p.user_id ORDER BY u.email,p.role`).all();
+    res.json({assignments:rows});
+  });
+  app.post('/api/platform/roles',protectedMutation,signedIn,platformAccess(['system_admin']),(req,res)=>{
+    const email=typeof req.body?.email==='string'?req.body.email.trim().toLowerCase():'';
+    const role=req.body?.role;
+    if(!email||email.length>254||!['system_admin','sales_admin','sales_rep'].includes(role))return res.status(400).send('Select a valid user email and platform role.');
+    const target=db.prepare('SELECT id FROM users WHERE email=?').get(email);
+    if(!target)return res.status(404).send('User must first have a Real Life Connect account.');
+    const now=new Date().toISOString();
+    const result=db.prepare('INSERT OR IGNORE INTO platform_roles(user_id,role,granted_at,granted_by) VALUES (?,?,?,?)').run(target.id,role,now,req.account.user_id);
+    if(result.changes)db.prepare('INSERT INTO platform_audit(id,actor_user_id,action,target_type,target_id,details,created_at) VALUES (?,?,?,?,?,?,?)').run(randomUUID(),req.account.user_id,'platform_role_granted','user',target.id,JSON.stringify({role}),now);
+    res.json({created:Boolean(result.changes)});
+  });
+  app.delete('/api/platform/roles',protectedMutation,signedIn,platformAccess(['system_admin']),(req,res)=>{
+    const {userId,role}=req.body||{};
+    if(typeof userId!=='string'||!['system_admin','sales_admin','sales_rep'].includes(role))return res.status(400).send('Invalid platform role request.');
+    if(userId===req.account.user_id&&role==='system_admin')return res.status(409).send('You cannot revoke your own System Administrator access.');
+    db.exec('BEGIN IMMEDIATE');
+    try{
+      if(role==='system_admin'&&db.prepare("SELECT count(*) n FROM platform_roles WHERE role='system_admin'").get().n<=1){db.exec('ROLLBACK');return res.status(409).send('At least one System Administrator must remain.');}
+      const result=db.prepare('DELETE FROM platform_roles WHERE user_id=? AND role=?').run(userId,role);
+      if(result.changes)db.prepare('INSERT INTO platform_audit(id,actor_user_id,action,target_type,target_id,details,created_at) VALUES (?,?,?,?,?,?,?)').run(randomUUID(),req.account.user_id,'platform_role_revoked','user',userId,JSON.stringify({role}),new Date().toISOString());
+      db.exec('COMMIT');
+      res.json({removed:Boolean(result.changes)});
+    }catch(error){db.exec('ROLLBACK');throw error;}
+  });
   app.get('/api/session', signedIn, (req, res) => {
-    res.json({ user: { id: req.account.user_id, name: req.account.name, email: req.account.email } });
+    res.json({ user: { id: req.account.user_id, name: req.account.name, email: req.account.email }, platformRoles:platformRoles(req.account.user_id) });
   });
   app.post('/api/logout', protectedMutation, signedIn, (req, res) => {
     db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(req.account.token_hash);
@@ -77,7 +133,7 @@ function installAccountRoutes(app, store, options = {}) {
     }
     const rooms = db.prepare(`SELECT r.id, r.name, r.plan, r.status FROM rooms r JOIN room_assignments a ON a.room_id = r.id WHERE r.organization_id = ? AND a.user_id = ? ORDER BY r.name`).all(w.id, a.user_id);
     res.json({ user: { id: a.user_id, name: a.name, email: a.email, status: a.status },
-      workspaces: req.workspaces, workspace: w, rooms,
+      workspaces: req.workspaces, workspace: w, rooms, platformRoles:platformRoles(a.user_id),
       personalMeeting: { provisioned: Boolean(job), meetingUrl, plan: job?.draft.planSlug || null, isTest: Boolean(job), loginUrl: 'https://real-life.reallife-connect.live/login' } });
   });
   // Departments belong to a specific organization, not to meeting rooms or subscriptions.
