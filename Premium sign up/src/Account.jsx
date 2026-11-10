@@ -33,7 +33,7 @@ function SectionIcon({kind}) {
 }
 function accountSection(){
   const hash=window.location.hash;
-  return hash.includes('?rooms')?'rooms':hash.includes('?profile')?'profile':hash.includes('?admin')?'admin':'meetings';
+  return hash.includes('?platform')?'platform':hash.includes('?rooms')?'rooms':hash.includes('?profile')?'profile':hash.includes('?admin')?'admin':'meetings';
 }
 
 function DepartmentsAdmin({workspaceId,request}) {
@@ -264,6 +264,55 @@ function PendingHostRequestsAdmin({workspaceId,request}) {
   </section>;
 }
 
+function PlatformAdministration({roles,request}) {
+  const system=roles.includes('system_admin');
+  const sales=roles.includes('sales_admin')||system;
+  const [overview,setOverview]=useState(null),[assignments,setAssignments]=useState([]);
+  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
+  const [email,setEmail]=useState(''),[role,setRole]=useState('sales_rep');
+  async function refresh(){
+    const results=await Promise.all([request('/api/platform/overview'),...(system?[request('/api/platform/roles')]:[])]);
+    setOverview(results[0]);if(system)setAssignments(results[1].assignments);
+  }
+  useEffect(()=>{let live=true;setLoading(true);Promise.all([request('/api/platform/overview'),...(system?[request('/api/platform/roles')]:[])])
+    .then(results=>{if(live){setOverview(results[0]);if(system)setAssignments(results[1].assignments);}})
+    .catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setLoading(false);});
+    return()=>{live=false;};
+  },[request,system]);
+  async function assign(e){
+    e.preventDefault();if(busy)return;setBusy(true);setError('');setNotice('');
+    try{await request('/api/platform/roles',{method:'POST',body:JSON.stringify({email,role})});await refresh();setEmail('');setNotice('Platform role assignment saved.');}
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function revoke(item){
+    if(busy||!window.confirm('Remove '+item.role.replaceAll('_',' ')+' access for '+item.email+'?'))return;
+    setBusy(true);setError('');setNotice('');
+    try{await request('/api/platform/roles',{method:'DELETE',body:JSON.stringify({userId:item.userId,role:item.role})});await refresh();setNotice('Platform role removed.');}
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  return <section className="ac-platform-admin">
+    <p className="ac-note">Platform management is separate from customer organization administration. Planned functions shown below are not yet connected to pricing, billing, feature entitlements, or Iotum.</p>
+    {error&&<p className="ac-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
+    {loading?<p role="status">Loading platform administration…</p>:<>
+      <div className="ac-platform-grid">{overview?.sections.map(item=><article key={item.id} className="ac-platform-card"><h3>{item.title}</h3><p>{item.status==='available'?'Role assignment available':'Planned — not active'}</p></article>)}</div>
+      {system&&<section className="ac-platform-roles">
+        <h3>Platform access</h3>
+        <p className="ac-note">Assign existing Real Life Connect accounts to platform roles. Platform roles do not change customer organization permissions.</p>
+        <form className="ac-platform-role-form" onSubmit={assign}>
+          <label>Existing user email<input type="email" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)} placeholder="user@example.com"/></label>
+          <label>Platform role<select value={role} onChange={e=>setRole(e.target.value)}><option value="sales_rep">Sales Representative</option><option value="sales_admin">Sales Administrator</option><option value="system_admin">System Administrator</option></select></label>
+          <button className="mc-action" disabled={busy}>{busy?'Saving…':'Assign role'}</button>
+        </form>
+        <div className="ac-table" role="region" aria-label="Platform role assignments" tabIndex={0}>
+          <table className="app-data-table"><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Platform role</th><th scope="col">Action</th></tr></thead>
+          <tbody>{assignments.map(item=><tr key={item.userId+'-'+item.role}><th scope="row">{item.name}</th><td>{item.email}</td><td>{item.role.replaceAll('_',' ')}</td><td><button type="button" className="rc-button" disabled={busy} onClick={()=>revoke(item)} aria-label={'Revoke '+item.role+' from '+item.email}>Revoke</button></td></tr>)}{!assignments.length&&<tr><td colSpan={4}>No platform roles have been assigned.</td></tr>}</tbody></table>
+        </div>
+      </section>}
+      {!system&&sales&&<p className="ac-note">Sales administration screens will become available here after the approval and lead-management workflows are implemented.</p>}
+    </>}
+  </section>;
+}
+
 export function Dashboard({ onSignedOut, user:sessionUser }) {
   const [data, setData] = useState(null), [error, setError] = useState(''), [workspace, setWorkspace] = useState('');
   const [tab,setTab]=useState(accountSection);
@@ -284,7 +333,7 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
   },[mobileOpen]);
   useEffect(()=>{
     content.current?.scrollTo?.({top:0,left:0});pageHeading.current?.focus({preventScroll:true});
-    const names={meetings:'My Meetings',rooms:'Shared Rooms',profile:'My Account',admin:'Organization Admin'};
+    const names={meetings:'My Meetings',rooms:'Shared Rooms',profile:'My Account',admin:'Organization Admin',platform:'Platform Administration'};
     document.title=names[tab]+' | Real Life Connect';
   },[tab,adminSection,workspace]);
   useEffect(()=>{
@@ -325,8 +374,10 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
     } finally { setOpeningMeetings(false); }
   }
   const isAdmin=Boolean(data&&data.workspace.role==='admin'&&data.workspace.kind==='organization');
+  const platformRoles=data?.platformRoles||[];
+  const isPlatformAdmin=platformRoles.some(role=>['system_admin','sales_admin','sales_rep'].includes(role));
   const currentUser=data?.user||sessionUser;
-  const labels={meetings:'My Meetings',rooms:'Shared Rooms',profile:'My Account',admin:'Organization Admin'};
+  const labels={meetings:'My Meetings',rooms:'Shared Rooms',profile:'My Account',admin:'Organization Admin',platform:'Platform Administration'};
   function go(section,subsection='members'){
     setTab(section);setAdminSection(subsection);setMobileOpen(false);
     window.location.hash='account?'+section+(section==='admin'&&subsection!=='members'?'&view='+subsection:'');
@@ -336,6 +387,7 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
       <div className="ac-workspace-name"><small>{data?.workspace.kind==='personal'?'PERSONAL ACCOUNT':'ORGANIZATION'}</small><strong>{data?.workspace.name||'Your workspace'}</strong></div>
       <nav className="ac-side-nav" aria-label="Workspace navigation"><div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="meetings"/><span>Host Admin</span></h2><div className="ac-side-subnav">{['meetings','rooms','profile'].map(key=><a key={key} href={'#account?'+key} aria-current={tab===key?'page':undefined} onClick={e=>{e.preventDefault();go(key);}}>{labels[key]}</a>)}</div></div>
         {isAdmin&&<div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="admin"/><span>Organization Admin</span></h2><div className="ac-side-subnav"><a href="#account?admin" aria-current={tab==='admin'&&adminSection==='members'?'page':undefined} onClick={e=>{e.preventDefault();go('admin');}}>Members</a><a href="#account?admin&view=hosts" aria-current={tab==='admin'&&adminSection==='hosts'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','hosts');}}>Create New Host</a><a href="#account?admin&view=requests" aria-current={tab==='admin'&&adminSection==='requests'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','requests');}}>Pending Host Requests</a><a href="#account?admin&view=departments" aria-current={tab==='admin'&&adminSection==='departments'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','departments');}}>Departments</a><a href="#account?admin&view=rooms" aria-current={tab==='admin'&&adminSection==='rooms'?'page':undefined} onClick={e=>{e.preventDefault();go('admin','rooms');}}>Shared room settings</a></div></div>}
+        {isPlatformAdmin&&<div className="ac-nav-group"><h2 className="ac-side-heading"><SectionIcon kind="admin"/><span>Platform Administration</span></h2><div className="ac-side-subnav"><a href="#account?platform" aria-current={tab==='platform'?'page':undefined} onClick={e=>{e.preventDefault();go('platform');}}>{platformRoles.includes('system_admin')?'System Administration':'Sales Administration'}</a></div></div>}
       </nav><div className="ac-side-bottom"><a href="#home" onClick={()=>setMobileOpen(false)}>← Public website</a><div><span className="ac-avatar" aria-hidden="true">{(currentUser?.name||'RL').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span><p><strong>{currentUser?.name||'Your account'}</strong><small>{data?.workspace.kind==='personal'?'Personal account':isAdmin?'Organization administrator':'Member'}</small></p></div></div></>;
   }
   return <div className="ac-app">
@@ -348,6 +400,7 @@ export function Dashboard({ onSignedOut, user:sessionUser }) {
     {tab==='meetings' && <div className="ac-panel"><h2>Your Personal Meeting Space</h2>{data.personalMeeting.provisioned ? <><p className="ac-plan">Plan: <strong>{plans.find(p=>p.code===data.personalMeeting.plan)?.name || 'Meeting account'}</strong></p><div className="ac-meeting-actions"><article><h3>Manage Meetings</h3><p>Schedule meetings, view upcoming sessions, and access your meeting history and recordings.</p><button className="mc-action" type="button" disabled={openingMeetings} onClick={openMeetings}>{openingMeetings ? "Opening meetings…" : "Open My Meetings ↗"}</button></article>{data.personalMeeting.meetingUrl && <article><h3>Your Meeting Room</h3><p>Open your personal room. Sign in to host, or share this room link with your guests.</p><a className="mc-action mc-action-secondary" href={data.personalMeeting.meetingUrl} target="_blank" rel="noopener noreferrer">Open Room Link ↗</a></article>}</div>{meetingError && <p className="ac-error" role="alert">{meetingError}</p>}<p className="ac-note">Your meeting dashboard opens in a new tab.</p></> : <p>Your personal meeting space is awaiting activation.</p>}</div>}
     {tab==='rooms' && <div className="ac-panel"><RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} canManage={false}/></div>}
     {tab==='profile' && <div className="ac-panel"><h2>My account</h2><dl><dt>Name</dt><dd>{data.user.name}</dd><dt>Email</dt><dd>{data.user.email}</dd><dt>Workspace permission</dt><dd>{data.workspace.role==='admin'?'Administrator':'Member'}</dd><dt>Payment status</dt><dd>{data.user.status==='pending_payment'?'Pending payment':data.user.status}</dd></dl></div>}
+    {tab==='platform'&&isPlatformAdmin&&<section className="ac-panel ac-admin-panel"><h2>{platformRoles.includes('system_admin')?'System Administration':'Sales Administration'}</h2><PlatformAdministration key={data.workspace.id} roles={platformRoles} request={accountRequest}/></section>}
     {tab==='admin'&&isAdmin&&<section className="ac-panel ac-admin-panel"><header className="ac-section-header"><div><p className="ac-plan">{data.workspace.name}</p><h2>{adminSection==='members'?'Organization members':adminSection==='hosts'?'Create New Host':adminSection==='requests'?'Pending Host Requests':adminSection==='departments'?'Departments':'Shared room settings'}</h2></div><nav className="ac-admin-switch" aria-label="Organization sections"><button aria-pressed={adminSection==='members'} onClick={()=>go('admin')}>Members</button><button aria-pressed={adminSection==='hosts'} onClick={()=>go('admin','hosts')}>Create Host</button><button aria-pressed={adminSection==='requests'} onClick={()=>go('admin','requests')}>Pending requests</button><button aria-pressed={adminSection==='departments'} onClick={()=>go('admin','departments')}>Departments</button><button aria-pressed={adminSection==='rooms'} onClick={()=>go('admin','rooms')}>Shared rooms</button></nav></header>
       {adminSection==='hosts'?<CreateHostAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} onNavigateRequests={()=>go('admin','requests')}/>:adminSection==='requests'?<PendingHostRequestsAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='departments'?<DepartmentsAdmin key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest}/>:adminSection==='rooms'?<RoomCalendar key={data.workspace.id} workspaceId={data.workspace.id} request={accountRequest} administration/>:adminError?<p role="alert" className="ac-error">{adminError}</p>:!admin?<p role="status">Loading organization…</p>:<OrganizationMembersTable members={admin.members}/>}
     </section>}
