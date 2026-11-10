@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 15) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 16) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -293,6 +293,28 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
       ) STRICT;
       CREATE INDEX pending_hosts_organization ON pending_hosts(organization_id,created_at);
       PRAGMA user_version = 15;
+      COMMIT;`);
+  }
+  if (version < 16) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE platform_roles (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL CHECK(role IN ('system_admin','sales_admin','sales_rep')),
+        granted_at TEXT NOT NULL,
+        granted_by TEXT REFERENCES users(id),
+        PRIMARY KEY(user_id,role)
+      ) STRICT;
+      CREATE INDEX platform_roles_role ON platform_roles(role);
+      CREATE TABLE platform_audit (
+        id TEXT PRIMARY KEY,
+        actor_user_id TEXT REFERENCES users(id),
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT,
+        details TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(details)),
+        created_at TEXT NOT NULL
+      ) STRICT;
+      PRAGMA user_version = 16;
       COMMIT;`);
   }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {
