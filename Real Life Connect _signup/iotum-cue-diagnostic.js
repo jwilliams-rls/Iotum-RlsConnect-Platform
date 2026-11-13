@@ -28,12 +28,30 @@ if (!Number.isSafeInteger(conferenceId) || conferenceId <= 0 || process.argv.len
     const result = Array.isArray(response) ? response[0] : response;
     if (!result || typeof result !== 'object') throw new Error('Unexpected conference response');
     const entries = describe(result);
+    // Metadata only: never print meeting text, participant identities, or links.
+    function arrayShape(value) {
+      return Array.isArray(value) ? {
+        count: value.length,
+        firstItemType: value.length ? (Array.isArray(value[0]) ? 'array' : value[0] === null ? 'null' : typeof value[0]) : null,
+        firstItemFields: value.length && value[0] && typeof value[0] === 'object' && !Array.isArray(value[0]) ? Object.keys(value[0]).sort() : []
+      } : { available: false };
+    }
+    const recordings = Array.isArray(result.recordings) ? result.recordings : [];
+    const recordingShapes = recordings.map((recording,index)=>({
+      index,
+      fields: recording && typeof recording==='object' ? Object.keys(recording).sort() : [],
+      transcriptionSegments: arrayShape(recording?.transcription_segments),
+      transcriptionTags: arrayShape(recording?.transcription_tags)
+    }));
     console.log(JSON.stringify({
       conferenceId,
       responseKind: Array.isArray(response) ? 'array' : 'object',
       topLevelFields: Object.keys(result).sort(),
       candidateContentFields: entries,
-      recordedItems: Array.isArray(result.recordings) ? result.recordings.length : null,
+      recordedItems: recordings.length,
+      actionItems: arrayShape(result.action_items),
+      recordingShapes,
+      sentimentAvailable: result.sentiment_available === true,
       warning: 'A meeting_summary_url is not proof that Cue Overview, Detailed Summary or Action Items can be exported. Only field names and presence were examined.'
     }, null, 2));
   })().catch(err => {
