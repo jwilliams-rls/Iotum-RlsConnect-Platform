@@ -1,0 +1,13 @@
+/* Shared application table and row-action standard. */
+.app-data-table.app-data-table{width:100%;border-collapse:collapse;text-align:left;font-size:13px;color:#000080;background:white}
+.app-data-table.app-data-table th,.app-data-table.app-data-table td{border:1px solid #b9c5d9;padding:12px 10px;vertical-align:top;line-height:1.6;overflow-wrap:anywhere}
+.app-data-table.app-data-table thead th{background:#eaf0f8;font-size:12px;font-weight:700;padding-top:14px;padding-bottom:14px}
+.app-data-table.app-data-table tbody th{font-weight:600}
+.app-data-table.app-data-table tbody tr:nth-child(even)>*{background:#f8faff}
+.app-data-table.app-data-table tbody tr:hover>*{background:#f1f5fc}
+.app-data-table.app-data-table tbody tr:last-child>*{border-bottom:1px solid #b9c5d9}
+.app-data-table caption{text-align:left;font-weight:700;margin:15px 0}
+.app-row-action.app-row-action{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;height:40px;padding:0;border:1px solid #cbd3e5;border-radius:6px;background:white;color:#000080;cursor:pointer}
+.app-row-action.app-row-action:hover{background:#e9edff;border-color:#000080}
+.app-row-action.app-row-action:focus-visible{outline:2px solid #d84b10;outline-offset:3px}
+.app-row-action.app-row-action:disabled{opacity:.55;cursor:default}
