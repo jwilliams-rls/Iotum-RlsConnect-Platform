@@ -172,19 +172,52 @@ function PendingHostRequestsAdmin({workspaceId,request}) {
   const [hostFilters,setHostFilters]=useState({name:'',email:'',department:'',jobTitle:'',plan:'',status:''});
   const [editingHost,setEditingHost]=useState(null),[cancellingHost,setCancellingHost]=useState(null),[restoringHost,setRestoringHost]=useState(null);
   const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const [checkoutEnabled,setCheckoutEnabled]=useState(false);
   const [showCancelled,setShowCancelled]=useState(false);
   const base='/api/workspaces/'+encodeURIComponent(workspaceId);
   useEffect(()=>{let live=true;setLoading(true);Promise.all([request(base+'/departments'),request(base+'/pending-hosts')])
-    .then(([d,h])=>{if(live){setDepartments(d.departments);setDrafts(h.hosts);}}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setLoading(false);});
+    .then(([d,h])=>{if(live){setDepartments(d.departments);setDrafts(h.hosts);setCheckoutEnabled(Boolean(h.checkoutEnabled));}}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setLoading(false);});
     return()=>{live=false;};
   },[base,request]);
   const hostColumns=[['name','Name'],['email','Email'],['department','Department'],['jobTitle','Job title'],['plan','Plan'],['status','Status']];
+  function displayStatus(host) {
+    if (host.status==='cancelled') return 'Cancelled';
+    if (host.checkoutStatus==='paid') return 'Test payment confirmed · awaiting activation';
+    if (host.checkoutStatus==='started') return 'Checkout started';
+    return 'Pending billing';
+  }
   const filteredHosts=drafts.filter(d=>(showCancelled||d.status!=='cancelled')&&hostColumns.every(([key])=>{
-    const value=key==='department'?d.departmentName||'Unassigned':key==='status'?d.status==='cancelled'?'Cancelled':'Pending billing':key==='jobTitle'?d.jobTitle||'':d[key]||'';
+    const value=key==='department'?d.departmentName||'Unassigned':key==='status'?displayStatus(d):key==='jobTitle'?d.jobTitle||'':d[key]||'';
     return String(value).toLocaleLowerCase().includes(hostFilters[key].trim().toLocaleLowerCase());
   }));
   function hostFilter(key,value){setHostFilters(f=>({...f,[key]:value}));setPendingPage(1);}
   async function refreshHosts(){const result=await request(base+'/pending-hosts');setDrafts(result.hosts);}
+  async function checkout(host, action) {
+    if (busy) return;
+    setBusy(true);setError('');setNotice('');
+    try {
+      const result=await request(base+'/pending-hosts/'+encodeURIComponent(host.id)+'/checkout',
+        {method:'POST',body:JSON.stringify({action})});
+      if (action==='start' && result.status==='open') {
+        const url=new URL(result.url);
+        if (url.origin!=='https://checkout.stripe.com') throw new Error('Invalid Stripe Checkout link.');
+        window.location.assign(url.href);
+        return;
+      }
+      await refreshHosts();
+      const notices = {
+        paid:'Test payment confirmed. The host is awaiting activation.',
+        expired:'Checkout expired. You can edit the request or start checkout again.',
+        open:'Stripe is still waiting for payment. Resume checkout when ready.',
+        awaiting_payment:'Stripe has not confirmed payment yet. Check again shortly.',
+        not_started:'Checkout has not started.',
+      };
+      setNotice(notices[result.status] || 'Check the request status.');
+    } catch(e) {
+      setError(e.message);
+      try { await refreshHosts(); } catch { /* Keep the original checkout error. */ }
+    } finally { setBusy(false); }
+  }
   async function updateHost(e){
     e.preventDefault();if(busy||!editingHost)return;setBusy(true);setError('');setNotice('');
     try{
@@ -215,7 +248,7 @@ function PendingHostRequestsAdmin({workspaceId,request}) {
   const visibleDrafts=filteredHosts.slice(pendingStart,pendingStart+pendingPageSize);
 
   return <section className="ac-host-requests-admin">
-    <p className="ac-note">Manage pending host subscriptions. Cancelled requests are retained and can be restored when needed.</p>
+    <p className="ac-note">Manage pending host subscriptions. After returning from Stripe, select Check payment to verify the result.</p>
     <label className="ac-host-show-cancelled"><input type="checkbox" checked={showCancelled} onChange={e=>{setShowCancelled(e.target.checked);setPendingPage(1);}}/> Show cancelled requests</label>
     {error&&<p role="alert" className="ac-error">{error}</p>}{notice&&<p role="status">{notice}</p>}
     {loading?<p role="status">Loading host requests…</p>:<>
@@ -247,7 +280,7 @@ function PendingHostRequestsAdmin({workspaceId,request}) {
           <thead><tr>{hostColumns.map(([key,label])=><th scope="col" key={key}>{label}</th>)}<th scope="col">Actions</th></tr>
             <tr className="ac-column-filters">{hostColumns.map(([key,label])=><th key={key}><label className="rlc-sr-only" htmlFor={'ac-host-filter-'+key}>Search {label}</label><input id={'ac-host-filter-'+key} type="search" value={hostFilters[key]} onChange={e=>hostFilter(key,e.target.value)} placeholder={'Search '+label.toLowerCase()}/></th>)}<th><button type="button" className="rc-button" onClick={()=>{setHostFilters({name:'',email:'',department:'',jobTitle:'',plan:'',status:''});setPendingPage(1);}}>Clear</button></th></tr>
           </thead>
-          <tbody>{visibleDrafts.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td>{d.email}</td><td>{d.departmentName||'Unassigned'}</td><td>{d.jobTitle||'—'}</td><td>{d.plan.toUpperCase()}</td><td>{d.status==='cancelled'?'Cancelled':'Pending billing'}</td><td className="ac-host-row-actions">{d.status!=='cancelled'?<><button type="button" className="rc-button" title={'Edit '+d.name} aria-label={'Edit '+d.name} onClick={()=>{setEditingHost({...d});setCancellingHost(null);setRestoringHost(null);setError('');}}>✎</button><button type="button" className="rc-button" title={'Cancel request for '+d.name} aria-label={'Cancel request for '+d.name} onClick={()=>{setCancellingHost(d);setEditingHost(null);setRestoringHost(null);setError('');}}>✕</button></>:<button type="button" className="rc-button" title={'Restore request for '+d.name} aria-label={'Restore request for '+d.name} onClick={()=>{setRestoringHost(d);setEditingHost(null);setCancellingHost(null);setError('');}}>↶</button>}</td></tr>)}{!filteredHosts.length&&<tr><td colSpan={7}>No host requests match the current filters.</td></tr>}</tbody>
+          <tbody>{visibleDrafts.map(d=><tr key={d.id}><th scope="row">{d.name}</th><td>{d.email}</td><td>{d.departmentName||'Unassigned'}</td><td>{d.jobTitle||'—'}</td><td>{d.plan.toUpperCase()}</td><td>{displayStatus(d)}</td><td className="ac-host-row-actions">{d.status!=='cancelled'?<>{checkoutEnabled&&d.checkoutStatus!=='paid'&&<><button type="button" className="rc-button" disabled={busy} onClick={()=>checkout(d,'start')}>{d.checkoutStatus==='started'?'Resume checkout':'Test checkout'}</button>{d.checkoutStatus==='started'&&<button type="button" className="rc-button" disabled={busy} onClick={()=>checkout(d,'check')}>Check payment</button>}</>}{!d.checkoutStatus&&<><button type="button" className="rc-button" title={'Edit '+d.name} aria-label={'Edit '+d.name} onClick={()=>{setEditingHost({...d});setCancellingHost(null);setRestoringHost(null);setError('');}}>✎</button><button type="button" className="rc-button" title={'Cancel request for '+d.name} aria-label={'Cancel request for '+d.name} onClick={()=>{setCancellingHost(d);setEditingHost(null);setRestoringHost(null);setError('');}}>✕</button></>}</>:<button type="button" className="rc-button" title={'Restore request for '+d.name} aria-label={'Restore request for '+d.name} onClick={()=>{setRestoringHost(d);setEditingHost(null);setCancellingHost(null);setError('');}}>↶</button>}</td></tr>)}{!filteredHosts.length&&<tr><td colSpan={7}>No host requests match the current filters.</td></tr>}</tbody>
         </table>
       </div>
       <div className="ac-table-pagination" aria-label="Pending host result pages">

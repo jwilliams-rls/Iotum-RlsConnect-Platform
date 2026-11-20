@@ -9,7 +9,7 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
   if (filename !== ":memory:") chmodSync(filename, 0o600);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 16) { db.close(); throw new Error("Database schema is newer than this application."); }
+  if (version > 17) { db.close(); throw new Error("Database schema is newer than this application."); }
   if (version === 0) {
     db.exec(`
       BEGIN IMMEDIATE;
@@ -315,6 +315,21 @@ function openStore(filename = process.env.SQLITE_PATH || path.join(__dirname, "v
         created_at TEXT NOT NULL
       ) STRICT;
       PRAGMA user_version = 16;
+      COMMIT;`);
+  }
+  if (version < 17) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE host_checkout (
+        host_id TEXT PRIMARY KEY REFERENCES pending_hosts(id),
+        attempt_id TEXT NOT NULL UNIQUE,
+        amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+        request_body TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        session_id TEXT UNIQUE,
+        subscription_id TEXT UNIQUE,
+        paid_at TEXT
+      ) STRICT;
+      PRAGMA user_version = 17;
       COMMIT;`);
   }
   function createSignup({ orgName, adminName, adminEmail, passwordHash }) {

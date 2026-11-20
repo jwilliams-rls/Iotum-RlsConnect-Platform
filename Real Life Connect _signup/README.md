@@ -217,3 +217,12 @@ Room calendars now open to a month grid with per-date reservation counts. Select
 Schema version 12 adds an optional description (up to 2,000 characters) to room_meeting_options, preserving all previous reservations, PINs, modes and revisions. Existing descriptions default to empty. Scheduling and host editing can save descriptions. Omitted descriptions on older-client updates preserve their current value. Calendar responses return descriptions only to the reservation owner or an organization administrator; ordinary hosts see Reserved with an empty description for another host’s bookings. The website also masks those details in Host Admin view for users who have organization-admin status.
 
 Daily cancellation requires confirmation. Starting a reservation from a selected date prefills that date; past-day creation is disabled. These remain local test calendars, without provider meetings or invitations. Back up before pulling and restart the backend to migrate. Validation: 31 backend tests, 9 frontend tests (including leap years, six-row months, overnight/midnight overlap and daylight saving), flow/navigation checks, production build and browser review.
+
+
+## Stripe test checkout for pending hosts
+
+Set `STRIPE_SECRET_KEY` to a Stripe test secret key and `STRIPE_CHECKOUT_ORIGIN` to the frontend origin, then restart the backend. In Codespaces, use the forwarded frontend HTTPS origin. For local development, use the Vite localhost origin. Keep the key in the backend environment.
+
+Open **Organization Admin → Pending Host Requests → Test checkout**. Stripe Checkout uses one recurring monthly charge from the selected host plan's retail price. After returning from Stripe, select **Check payment**. The backend checks the stored Checkout Session against Stripe before recording a paid test subscription. Resume checkout reuses an open session. After an expired unpaid session is confirmed, the request becomes editable again.
+
+This milestone supports organization-admin pending-host checkout in Stripe test mode. Webhook-driven confirmation, public signup checkout, Iotum activation, invitations, and subscription lifecycle handling remain separate launch work. Tests exercise the HTTP flow with a Stripe fixture. A Stripe sandbox checkout requires the account's test key.

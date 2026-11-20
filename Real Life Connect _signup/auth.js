@@ -159,6 +159,7 @@ function installAccountRoutes(app, store, options = {}) {
     if (!member) return res.status(403).send('You do not have access to this workspace.');
     req.workspace = member; req.workspaces = all; next();
   }
+  const checkoutEnabled = require('./stripe-host-checkout').installHostCheckout(app, db, { signedIn, workspace, protectedMutation }, options);
   require('./room-calendar').installRoomCalendar(app, store, { signedIn, workspace, protectedMutation });
   require('./meeting-access').installMeetingAccess(app, store, { signedIn, workspace, protectedMutation }, options.iotumClientFactory);
   app.get('/api/dashboard', signedIn, workspace, (req, res) => {
@@ -203,10 +204,11 @@ function installAccountRoutes(app, store, options = {}) {
   app.get('/api/workspaces/:id/pending-hosts', signedIn, workspace, (req,res) => {
     if(req.workspace.kind!=='organization'||req.workspace.role!=='admin') return res.status(403).send('Organization administrator access is required.');
     const hosts=db.prepare(`SELECT p.id,p.name,p.email,p.phone,p.job_title AS jobTitle,p.department_id AS departmentId,
-      d.name AS departmentName,p.timezone,p.plan,p.status,p.created_at AS createdAt
-      FROM pending_hosts p LEFT JOIN departments d ON d.id=p.department_id AND d.organization_id=p.organization_id
+      d.name AS departmentName,p.timezone,p.plan,p.status,p.created_at AS createdAt,
+      CASE WHEN c.paid_at IS NOT NULL THEN 'paid' WHEN c.host_id IS NOT NULL THEN 'started' END AS checkoutStatus
+      FROM pending_hosts p LEFT JOIN host_checkout c ON c.host_id=p.id LEFT JOIN departments d ON d.id=p.department_id AND d.organization_id=p.organization_id
       WHERE p.organization_id=? ORDER BY p.created_at DESC`).all(req.workspace.id);
-    res.json({hosts});
+    res.json({hosts, checkoutEnabled});
   });
   app.post('/api/workspaces/:id/pending-hosts',protectedMutation,signedIn,workspace,(req,res)=>{
     if(req.workspace.kind!=='organization'||req.workspace.role!=='admin') return res.status(403).send('Organization administrator access is required.');
@@ -234,12 +236,13 @@ function installAccountRoutes(app, store, options = {}) {
     const original=db.prepare('SELECT * FROM pending_hosts WHERE id=? AND organization_id=?').get(req.params.hostId,req.workspace.id);
     if(!original)return res.status(404).send('Host request not found.');
     if(original.status!=='pending_billing')return res.status(409).send('Canceled requests cannot be edited.');
+    if(db.prepare('SELECT 1 FROM host_checkout WHERE host_id=?').get(original.id))return res.status(409).send('This request is locked while checkout is in progress or paid.');
     const input=req.body;
     if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['name','email','phone','jobTitle','departmentId','timezone','plan'].includes(k)))return res.status(400).send('Invalid host details.');
     const {name,email,phone='',jobTitle='',departmentId='',timezone,plan}=input;
     if([name,email,phone,jobTitle,departmentId,timezone,plan].some(v=>typeof v!=='string'))return res.status(400).send('Invalid host details.');
     const n=name.trim(),e=email.trim().toLowerCase(),p=phone.trim(),job=jobTitle.trim(),tz=timezone.trim();
-    if(!n||n.length>200||!e||e.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(e)||p.length>40||job.length>120||!['basic','plus','pro'].includes(plan))return res.status(400).send('Check the host name, email, phone, job title and plan.');
+    if(!n||n.length>200||!e||e.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)||p.length>40||job.length>120||!['basic','plus','pro'].includes(plan))return res.status(400).send('Check the host name, email, phone, job title and plan.');
     if(!tz||tz.length>80)return res.status(400).send('Select a valid time zone.');
     try{new Intl.DateTimeFormat('en-US',{timeZone:tz});}catch{return res.status(400).send('Select a valid time zone.');}
     if(departmentId&&!db.prepare('SELECT 1 FROM departments WHERE id=? AND organization_id=?').get(departmentId,req.workspace.id))return res.status(400).send('Department is not part of this organization.');
@@ -252,6 +255,7 @@ function installAccountRoutes(app, store, options = {}) {
   });
   app.post('/api/workspaces/:id/pending-hosts/:hostId/cancel',protectedMutation,signedIn,workspace,(req,res)=>{
     if(req.workspace.kind!=='organization'||req.workspace.role!=='admin')return res.status(403).send('Organization administrator access is required.');
+    if(db.prepare('SELECT 1 FROM host_checkout c JOIN pending_hosts p ON p.id=c.host_id WHERE p.id=? AND p.organization_id=?').get(req.params.hostId,req.workspace.id))return res.status(409).send('This request is locked while checkout is in progress or paid.');
     const result=db.prepare("UPDATE pending_hosts SET status='cancelled' WHERE id=? AND organization_id=? AND status='pending_billing'").run(req.params.hostId,req.workspace.id);
     if(!result.changes)return res.status(404).send('Active pending host request not found.');
     res.json({cancelled:true});
