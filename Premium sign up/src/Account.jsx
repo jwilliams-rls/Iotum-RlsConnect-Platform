@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './account.css';
+import PricingAdmin from './PricingAdmin';
 import RoomCalendar from './RoomCalendar';
 import { plans } from './pricing';
 export async function accountRequest(path, options = {}) {
@@ -265,6 +266,7 @@ function PendingHostRequestsAdmin({workspaceId,request}) {
 }
 
 function PlatformAdministration({roles,request}) {
+  const [showPricing, setShowPricing] = useState(false);
   const system=roles.includes('system_admin');
   const sales=roles.includes('sales_admin')||system;
   const [overview,setOverview]=useState(null),[assignments,setAssignments]=useState([]);
@@ -290,11 +292,12 @@ function PlatformAdministration({roles,request}) {
     try{await request('/api/platform/roles',{method:'DELETE',body:JSON.stringify({userId:item.userId,role:item.role})});await refresh();setNotice('Platform role removed.');}
     catch(e){setError(e.message);}finally{setBusy(false);}
   }
+  if (showPricing && system) return <PricingAdmin request={request} onBack={()=>setShowPricing(false)}/>;
   return <section className="ac-platform-admin">
     <p className="ac-note">Platform management is separate from customer organization administration. Planned functions shown below are not yet connected to pricing, billing, feature entitlements, or Iotum.</p>
     {error&&<p className="ac-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
     {loading?<p role="status">Loading platform administration…</p>:<>
-      <div className="ac-platform-grid">{overview?.sections.map(item=><article key={item.id} className="ac-platform-card"><h3>{item.title}</h3><p>{item.status==='available'?'Role assignment available':'Planned — not active'}</p></article>)}</div>
+      <div className="ac-platform-grid">{overview?.sections.map(item=><article key={item.id} className="ac-platform-card"><h3>{item.title}</h3><p>{item.id==='catalog'?'Manage monthly prices and costs':item.status==='available'?'Role assignment available':'Planned — not active'}</p>{item.id==='catalog'&&system&&<button type="button" className="rc-button" onClick={()=>setShowPricing(true)}>Open plans and pricing</button>}</article>)}</div>
       {system&&<section className="ac-platform-roles">
         <h3>Platform access</h3>
         <p className="ac-note">Assign existing Real Life Connect accounts to platform roles. Platform roles do not change customer organization permissions.</p>

@@ -1,5 +1,6 @@
 const { randomBytes, createHash, randomUUID } = require('node:crypto');
 const { hashPassword, verifyPassword } = require('./passwords');
+const { readCatalog, saveCatalog } = require('./catalog');
 const { getTest } = require('./iotum-provision');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const COOKIE = 'rlc_session';
@@ -64,7 +65,7 @@ function installAccountRoutes(app, store, options = {}) {
       roles,
       sections:[
         {id:'accounts',title:'Customer Organizations',status:'planned',scope:'system_admin,sales_admin'},
-        {id:'catalog',title:'Subscription Plans & Pricing',status:'planned',scope:'system_admin'},
+        {id:'catalog',title:'Subscription Plans & Pricing',status:'available',scope:'system_admin'},
         {id:'features',title:'Feature Management & Pro Beta',status:'planned',scope:'system_admin'},
         {id:'specials',title:'Specials & Discounts',status:'planned',scope:'system_admin,sales_admin'},
         {id:'approvals',title:'Dual-Approval Queue',status:'planned',scope:'system_admin,sales_admin'},
@@ -74,6 +75,43 @@ function installAccountRoutes(app, store, options = {}) {
         {id:'roles',title:'Platform Access',status:'available',scope:'system_admin'}
       ].filter(section=>section.scope.split(',').some(role=>roles.includes(role)))
     });
+  });
+  function pricingView(db) {
+    const { catalog, revision } = readCatalog(db);
+    return {
+      revision,
+      organizationUserCents: catalog.organizationUserCents,
+      organizationUserSupplierCents: catalog.organizationUserSupplierCents,
+      plans: catalog.plans.map(({ id, name, priceCents, supplierMonthlyCents }) =>
+        ({ id, name, priceCents, supplierMonthlyCents })),
+    };
+  }
+  app.get('/api/platform/pricing', signedIn, platformAccess(['system_admin']), (req, res) => {
+    res.set('Cache-Control', 'no-store').json(pricingView(db));
+  });
+  app.put('/api/platform/pricing', protectedMutation, signedIn, platformAccess(['system_admin']), (req, res) => {
+    const { revision, organizationUserCents, organizationUserSupplierCents, plans } = req.body || {};
+    const isPrice = value => Number.isSafeInteger(value) && value >= 0 && value <= 1000000000;
+    const current = readCatalog(db);
+    if (!Number.isSafeInteger(revision) || !isPrice(organizationUserCents) ||
+        !isPrice(organizationUserSupplierCents) || !Array.isArray(plans) || plans.length !== current.catalog.plans.length ||
+        !current.catalog.plans.every(plan => plans.filter(row => row?.id === plan.id &&
+          isPrice(row.priceCents) && isPrice(row.supplierMonthlyCents)).length === 1)) {
+      return res.status(400).send('Enter valid prices and costs for every plan.');
+    }
+    if (current.revision !== revision) return res.status(409).send('Pricing changed since you opened it. Reload to review the latest prices.');
+    const catalog = { ...current.catalog, organizationUserCents, organizationUserSupplierCents,
+      plans: current.catalog.plans.map(plan => {
+        const { priceCents, supplierMonthlyCents } = plans.find(row => row.id === plan.id);
+        return { ...plan, priceCents, supplierMonthlyCents };
+      }) };
+    try {
+      saveCatalog(db, { revision, catalog });
+    } catch (error) {
+      if (error.message.startsWith('Catalog changed')) return res.status(409).send('Pricing changed since you opened it. Reload to review the latest prices.');
+      throw error;
+    }
+    res.set('Cache-Control', 'no-store').json(pricingView(db));
   });
   app.get('/api/platform/roles',signedIn,platformAccess(['system_admin']),(req,res)=>{
     const rows=db.prepare(`SELECT p.user_id AS userId,u.name,u.email,p.role,p.granted_at AS grantedAt
